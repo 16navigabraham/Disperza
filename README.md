@@ -25,8 +25,6 @@ Disperza is a decentralized application (dApp) built for the Celo ecosystem that
 
 ## 🚀 Getting Started
 
-This project is set up to be used within Firebase Studio.
-
 ### Prerequisites
 
 - [Node.js](https://nodejs.org/) (v18 or later recommended)
