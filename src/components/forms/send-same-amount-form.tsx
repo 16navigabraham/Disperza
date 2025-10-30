@@ -14,6 +14,7 @@ import { useDispersion } from "@/hooks/use-dispersion";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { TransactionStatus } from "./transaction-status";
 import { PlusCircle, Trash2, Loader2, Wallet, AlertCircle, Info } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
 
 const addressSchema = z.string().refine((val) => ethers.isAddress(val), {
   message: "Invalid address",
@@ -76,9 +77,14 @@ export function SendSameAmountForm() {
 
 
   const updateBalanceAndAllowance = useCallback(async () => {
+    if (!dispersion.isConnected || !tokenAddress || tokenAddress === '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE') {
+        setAllowance(BigInt(1)); // For native CELO, we don't need allowance. Set to 1 to pass checks.
+    }
     if (!dispersion.isConnected || !tokenAddress) return;
     dispersion.getBalance(tokenAddress).then(setBalance);
-    dispersion.getAllowance(tokenAddress).then(setAllowance);
+    if (tokenAddress !== '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE') {
+        dispersion.getAllowance(tokenAddress).then(setAllowance);
+    }
   }, [dispersion, tokenAddress]);
   
   useEffect(() => {
@@ -136,7 +142,11 @@ export function SendSameAmountForm() {
                   <FormLabel>Token</FormLabel>
                   <TokenSelector
                     value={field.value}
-                    onChange={field.onChange}
+                    onChange={(value) => {
+                      field.onChange(value);
+                      // Reset allowance when token changes
+                      setAllowance(BigInt(0));
+                    }}
                     disabled={dispersion.isLoading}
                   />
                   <FormMessage />
