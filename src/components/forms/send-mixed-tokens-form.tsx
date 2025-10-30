@@ -133,6 +133,8 @@ export function SendMixedTokensForm() {
   if (!dispersion.isConnected) return <Alert><Wallet className="h-4 w-4" /><AlertTitle>Wallet Not Connected</AlertTitle><AlertDescription>Please connect your wallet.</AlertDescription></Alert>;
   if (dispersion.isWrongNetwork) return <Alert variant="destructive"><AlertCircle className="h-4 w-4" /><AlertTitle>Wrong Network</AlertTitle><AlertDescription>Please switch to the Celo mainnet.</AlertDescription></Alert>;
 
+  const hasEntries = entries.some(e => e.amount && e.recipient && e.tokenAddress);
+
   return (
     <>
       <Form {...form}>
@@ -165,17 +167,17 @@ export function SendMixedTokensForm() {
                     )
                 })
             ) : <p className="text-sm text-muted-foreground">Fill out the form to see a summary.</p>}
-             {!hasSufficientBalance && <p className="text-destructive text-xs text-center pt-2">Insufficient balance for one or more tokens.</p>}
+             {!hasSufficientBalance && hasEntries && <p className="text-destructive text-xs text-center pt-2">Insufficient balance for one or more tokens.</p>}
           </div>
 
           <div className="flex flex-col gap-4">
-            {tokensToApprove.map(tokenAddress => (
-              <Button key={tokenAddress} type="button" onClick={() => handleApprove(tokenAddress)} disabled={dispersion.isLoading || !hasSufficientBalance} className="w-full">
-                {dispersion.isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                Approve {findTokenByAddress(tokenAddress)?.symbol}
-              </Button>
-            ))}
-            <Button type="submit" disabled={dispersion.isLoading || tokensToApprove.length > 0 || !hasSufficientBalance} className="w-full">
+            {Object.keys(totals).length > 0 && (
+                <Button type="button" onClick={() => Promise.all(Object.keys(totals).map(t => handleApprove(t)))} disabled={dispersion.isLoading || !hasSufficientBalance || !hasEntries} className="w-full">
+                    {dispersion.isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    Approve All Tokens
+                </Button>
+            )}
+            <Button type="submit" disabled={dispersion.isLoading || tokensToApprove.length > 0 || !hasSufficientBalance || !hasEntries} className="w-full">
               {dispersion.isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Send
             </Button>

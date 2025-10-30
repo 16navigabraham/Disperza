@@ -212,12 +212,10 @@ export function SendDifferentAmountsForm() {
           </div>
 
           <div className="flex gap-4">
-            {isApprovalNeeded && (
               <Button type="button" onClick={handleApprove} disabled={dispersion.isLoading || !hasSufficientBalance || totalAmount <= 0} className="w-full">
                 {dispersion.isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 Approve {selectedToken?.symbol}
               </Button>
-            )}
             <Button type="submit" disabled={dispersion.isLoading || isApprovalNeeded || !hasSufficientBalance || totalAmount <= 0} className="w-full">
               {dispersion.isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Send

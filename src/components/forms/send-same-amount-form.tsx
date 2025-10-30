@@ -13,7 +13,7 @@ import { CELO_TOKENS, findTokenByAddress } from "@/lib/tokens";
 import { useDispersion } from "@/hooks/use-dispersion";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { TransactionStatus } from "./transaction-status";
-import { PlusCircle, Trash2, Loader2, Wallet, AlertCircle, Info } from "lucide-react";
+import { PlusCircle, Trash2, Loader2, Wallet, AlertCircle } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 
 const addressSchema = z.string().refine((val) => ethers.isAddress(val), {
@@ -77,14 +77,9 @@ export function SendSameAmountForm() {
 
 
   const updateBalanceAndAllowance = useCallback(async () => {
-    if (!dispersion.isConnected || !tokenAddress || tokenAddress === '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE') {
-        setAllowance(BigInt(1)); // For native CELO, we don't need allowance. Set to 1 to pass checks.
-    }
     if (!dispersion.isConnected || !tokenAddress) return;
     dispersion.getBalance(tokenAddress).then(setBalance);
-    if (tokenAddress !== '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE') {
-        dispersion.getAllowance(tokenAddress).then(setAllowance);
-    }
+    dispersion.getAllowance(tokenAddress).then(setAllowance);
   }, [dispersion, tokenAddress]);
   
   useEffect(() => {
@@ -233,12 +228,10 @@ export function SendSameAmountForm() {
           </div>
 
           <div className="flex gap-4">
-            {isApprovalNeeded && (
-              <Button type="button" onClick={handleApprove} disabled={dispersion.isLoading || !hasSufficientBalance || totalAmount <= 0} className="w-full">
+            <Button type="button" onClick={handleApprove} disabled={dispersion.isLoading || !hasSufficientBalance || totalAmount <= 0} className="w-full">
                 {dispersion.isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 Approve {selectedToken?.symbol}
-              </Button>
-            )}
+            </Button>
             <Button type="submit" disabled={dispersion.isLoading || isApprovalNeeded || !hasSufficientBalance || totalAmount <= 0} className="w-full">
               {dispersion.isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Send
