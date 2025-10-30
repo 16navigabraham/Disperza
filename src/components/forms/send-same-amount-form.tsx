@@ -24,7 +24,7 @@ const addressSchema = z.string().refine((val) => ethers.isAddress(val), {
 const formSchema = z.object({
   tokenAddress: z.string().min(1, "Token is required"),
   amount: z.string().refine((val) => Number(val) > 0, { message: "Amount must be > 0" }),
-  recipients: z.array(z.object({ address: addressSchema })).min(2, "At least two recipients are required"),
+  recipients: z.array(z.object({ address: addressSchema })).min(1, "At least one recipient is required"),
 });
 
 export function SendSameAmountForm() {
@@ -38,7 +38,7 @@ export function SendSameAmountForm() {
     defaultValues: {
       tokenAddress: CELO_TOKENS[0].address,
       amount: "",
-      recipients: [{ address: "" }, { address: "" }],
+      recipients: [{ address: "" }],
     },
   });
 
@@ -196,7 +196,7 @@ export function SendSameAmountForm() {
                     variant="ghost"
                     size="icon"
                     onClick={() => remove(index)}
-                    disabled={fields.length <= 2 || dispersion.isLoading}
+                    disabled={fields.length <= 1 || dispersion.isLoading}
                     className="shrink-0"
                   >
                     <Trash2 className="h-4 w-4" />
