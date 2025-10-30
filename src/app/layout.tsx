@@ -7,7 +7,7 @@ export const metadata: Metadata = {
   title: 'Disperza - Celo Token Dispersion',
   description: 'Send multiple ERC20 tokens to multiple recipients in a single transaction on Celo.',
   icons: {
-    icon: '/favicon.ico',
+    icon: '/icon.png',
   },
   openGraph: {
     images: ['/disperza.png'],
