@@ -7,16 +7,6 @@ export default function Home() {
     <div className="flex flex-col min-h-screen bg-background text-foreground">
       <Header />
       <main className="flex-grow container mx-auto px-4 py-8 md:py-12">
-        <div className="flex justify-center mb-8">
-          <Image
-            src="/disperza.png"
-            alt="Disperza Logo"
-            width={150}
-            height={150}
-            priority
-            className="rounded-full shadow-lg"
-          />
-        </div>
         <DispersionTabs />
       </main>
       <footer className="text-center py-6 text-sm text-muted-foreground">
