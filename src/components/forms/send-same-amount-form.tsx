@@ -84,7 +84,12 @@ export function SendSameAmountForm() {
   
   useEffect(() => {
     updateBalance();
-  }, [updateBalance, tokenAddress, amount, recipients, dispersion, form, selectedToken]);
+  }, [updateBalance]);
+  
+  useEffect(() => {
+    // Reset approval when inputs change
+    setIsApproved(false);
+  }, [tokenAddress, amount, recipients]);
 
   async function handleApprove() {
     const hash = await dispersion.approve(tokenAddress, totalAmount.toString());
@@ -139,7 +144,6 @@ export function SendSameAmountForm() {
                     value={field.value}
                     onChange={(value) => {
                       field.onChange(value);
-                      setIsApproved(false);
                     }}
                     disabled={dispersion.isLoading}
                   />
@@ -159,10 +163,6 @@ export function SendSameAmountForm() {
                       placeholder="0.0"
                       {...field}
                       disabled={dispersion.isLoading}
-                      onChange={(e) => {
-                          field.onChange(e);
-                          setIsApproved(false);
-                      }}
                     />
                   </FormControl>
                   <FormMessage />
@@ -182,10 +182,7 @@ export function SendSameAmountForm() {
                     render={({ field }) => (
                       <FormItem className="flex-grow">
                         <FormControl>
-                          <Input placeholder="0x..." {...field} disabled={dispersion.isLoading} onChange={(e) => {
-                              field.onChange(e);
-                              setIsApproved(false);
-                          }}/>
+                          <Input placeholder="0x..." {...field} disabled={dispersion.isLoading} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>

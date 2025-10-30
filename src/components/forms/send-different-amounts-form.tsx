@@ -81,8 +81,20 @@ export function SendDifferentAmountsForm() {
     updateBalance();
   }, [updateBalance]);
 
+  useEffect(() => {
+    // Reset approval when inputs change
+    setIsApproved(false);
+  }, [tokenAddress, recipients]);
 
   async function handleApprove() {
+    if (totalAmount <= 0) {
+        toast({
+            variant: "destructive",
+            title: "Approval Failed",
+            description: "Total amount must be greater than zero.",
+        });
+        return;
+    }
     const hash = await dispersion.approve(tokenAddress, totalAmount.toString());
     if (hash) {
       setIsApproved(true);
@@ -135,7 +147,6 @@ export function SendDifferentAmountsForm() {
                     value={field.value}
                     onChange={(val) => {
                         field.onChange(val)
-                        setIsApproved(false);
                     }}
                     disabled={dispersion.isLoading}
                   />
@@ -156,7 +167,7 @@ export function SendDifferentAmountsForm() {
                       <FormItem>
                          {index === 0 && <FormLabel className="text-xs text-muted-foreground md:hidden">Address</FormLabel>}
                         <FormControl>
-                          <Input placeholder="0x..." {...field} disabled={dispersion.isLoading} onChange={(e) => {field.onChange(e); setIsApproved(false)}}/>
+                          <Input placeholder="0x..." {...field} disabled={dispersion.isLoading} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -169,7 +180,7 @@ export function SendDifferentAmountsForm() {
                       <FormItem>
                         {index === 0 && <FormLabel className="text-xs text-muted-foreground md:hidden">Amount</FormLabel>}
                         <FormControl>
-                          <Input type="number" placeholder="0.0" {...field} disabled={dispersion.isLoading} onChange={(e) => {field.onChange(e); setIsApproved(false)}}/>
+                          <Input type="number" placeholder="0.0" {...field} disabled={dispersion.isLoading} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
