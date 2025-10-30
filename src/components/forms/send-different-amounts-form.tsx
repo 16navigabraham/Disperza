@@ -33,7 +33,6 @@ const formSchema = z.object({
 export function SendDifferentAmountsForm() {
   const dispersion = useDispersion();
   const [balance, setBalance] = useState("0");
-  const [allowance, setAllowance] = useState(BigInt(0));
   const [isApproved, setIsApproved] = useState(false);
   const { toast } = useToast();
 
@@ -73,31 +72,20 @@ export function SendDifferentAmountsForm() {
     } catch { return false; }
   }, [balance, totalAmountParsed, selectedToken]);
   
-  const updateBalanceAndAllowance = useCallback(async () => {
+  const updateBalance = useCallback(async () => {
     if (!dispersion.isConnected || !tokenAddress) return;
     dispersion.getBalance(tokenAddress).then(setBalance);
-    dispersion.getAllowance(tokenAddress).then(allowance => {
-        setAllowance(allowance);
-         if(allowance >= totalAmountParsed && totalAmountParsed > 0) {
-            setIsApproved(true);
-        } else {
-            setIsApproved(false);
-        }
-    });
-  }, [dispersion, tokenAddress, totalAmountParsed]);
+  }, [dispersion, tokenAddress]);
 
   useEffect(() => {
-    updateBalanceAndAllowance();
-  }, [updateBalanceAndAllowance]);
+    updateBalance();
+  }, [updateBalance]);
 
-  useEffect(() => {
-    setIsApproved(allowance >= totalAmountParsed && totalAmountParsed > 0);
-  },[allowance, totalAmountParsed])
 
   async function handleApprove() {
     const hash = await dispersion.approve(tokenAddress, totalAmount.toString());
     if (hash) {
-      updateBalanceAndAllowance();
+      setIsApproved(true);
       toast({ title: "Approval Successful", description: "You can now send your tokens." });
     }
   }
@@ -109,7 +97,7 @@ export function SendDifferentAmountsForm() {
     if(hash) {
       form.reset();
       setIsApproved(false);
-      updateBalanceAndAllowance();
+      updateBalance();
     }
   }
   
