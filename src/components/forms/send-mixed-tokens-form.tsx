@@ -15,6 +15,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { TransactionStatus } from "./transaction-status";
 import { Loader2, Wallet, AlertCircle } from "lucide-react";
 import { Separator } from "../ui/separator";
+import { useToast } from "@/hooks/use-toast";
 
 const addressSchema = z.string().refine((val) => ethers.isAddress(val), { message: "Invalid address" });
 const amountSchema = z.string().refine((val) => Number(val) > 0, { message: "Amount > 0" });
@@ -41,6 +42,7 @@ export function SendMixedTokensForm() {
   const [balances, setBalances] = useState<Record<string, string>>({});
   const [allowances, setAllowances] = useState<Record<string, bigint>>({});
   const [tokensToApprove, setTokensToApprove] = useState<string[]>([]);
+  const { toast } = useToast();
   
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -57,7 +59,7 @@ export function SendMixedTokensForm() {
 
   const totals = useMemo(() => {
     return entries.reduce((acc, entry) => {
-        if(entry.tokenAddress) {
+        if(entry.tokenAddress && entry.amount && Number(entry.amount) > 0) {
             acc[entry.tokenAddress] = (acc[entry.tokenAddress] || 0) + (Number(entry.amount) || 0);
         }
         return acc;
@@ -112,10 +114,10 @@ export function SendMixedTokensForm() {
 
   async function handleApprove(tokenAddress: string) {
     const total = totals[tokenAddress] || 0;
-    const approvalAmount = total * 1.1;
-    const hash = await dispersion.approve(tokenAddress, approvalAmount.toString());
+    const hash = await dispersion.approve(tokenAddress, total.toString());
     if (hash) {
-      updateBalancesAndAllowances();
+      await updateBalancesAndAllowances();
+      toast({ title: "Approval Successful", description: `Approved ${findTokenByAddress(tokenAddress)?.symbol}`})
     }
   }
 
@@ -133,7 +135,7 @@ export function SendMixedTokensForm() {
   if (!dispersion.isConnected) return <Alert><Wallet className="h-4 w-4" /><AlertTitle>Wallet Not Connected</AlertTitle><AlertDescription>Please connect your wallet.</AlertDescription></Alert>;
   if (dispersion.isWrongNetwork) return <Alert variant="destructive"><AlertCircle className="h-4 w-4" /><AlertTitle>Wrong Network</AlertTitle><AlertDescription>Please switch to the Celo mainnet.</AlertDescription></Alert>;
 
-  const hasEntries = entries.some(e => e.amount && e.recipient && e.tokenAddress);
+  const hasEntries = entries.some(e => e.amount && Number(e.amount) > 0 && e.recipient && e.tokenAddress);
 
   return (
     <>
@@ -171,12 +173,20 @@ export function SendMixedTokensForm() {
           </div>
 
           <div className="flex flex-col gap-4">
-            {Object.keys(totals).length > 0 && (
-                <Button type="button" onClick={() => Promise.all(Object.keys(totals).map(t => handleApprove(t)))} disabled={dispersion.isLoading || !hasSufficientBalance || !hasEntries} className="w-full">
-                    {dispersion.isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    Approve All Tokens
-                </Button>
-            )}
+             {tokensToApprove.length > 0 && hasEntries && (
+                <div className="flex flex-col gap-2">
+                    <p className="text-sm text-center text-muted-foreground">The following tokens require approval:</p>
+                    {tokensToApprove.map(tokenAddress => {
+                        const token = findTokenByAddress(tokenAddress);
+                        return (
+                            <Button key={tokenAddress} type="button" onClick={() => handleApprove(tokenAddress)} disabled={dispersion.isLoading || !hasSufficientBalance}>
+                                {dispersion.isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                Approve {token?.symbol}
+                            </Button>
+                        )
+                    })}
+                </div>
+             )}
             <Button type="submit" disabled={dispersion.isLoading || tokensToApprove.length > 0 || !hasSufficientBalance || !hasEntries} className="w-full">
               {dispersion.isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Send

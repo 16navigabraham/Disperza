@@ -15,6 +15,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { TransactionStatus } from "./transaction-status";
 import { PlusCircle, Trash2, Loader2, Wallet, AlertCircle } from "lucide-react";
 import { Separator } from "../ui/separator";
+import { useToast } from "@/hooks/use-toast";
 
 const addressSchema = z.string().refine((val) => ethers.isAddress(val), {
   message: "Invalid address",
@@ -33,6 +34,8 @@ export function SendDifferentAmountsForm() {
   const dispersion = useDispersion();
   const [balance, setBalance] = useState("0");
   const [allowance, setAllowance] = useState(BigInt(0));
+  const [isApproved, setIsApproved] = useState(false);
+  const { toast } = useToast();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -62,7 +65,7 @@ export function SendDifferentAmountsForm() {
     } catch { return BigInt(0); }
   }, [totalAmount, selectedToken]);
 
-  const isApprovalNeeded = useMemo(() => allowance < totalAmountParsed, [allowance, totalAmountParsed]);
+  
   const hasSufficientBalance = useMemo(() => {
     try {
       const balanceParsed = ethers.parseUnits(balance, selectedToken?.decimals || 18);
@@ -73,18 +76,30 @@ export function SendDifferentAmountsForm() {
   const updateBalanceAndAllowance = useCallback(async () => {
     if (!dispersion.isConnected || !tokenAddress) return;
     dispersion.getBalance(tokenAddress).then(setBalance);
-    dispersion.getAllowance(tokenAddress).then(setAllowance);
-  }, [dispersion, tokenAddress]);
+    dispersion.getAllowance(tokenAddress).then(allowance => {
+        setAllowance(allowance);
+         if(allowance >= totalAmountParsed && totalAmountParsed > 0) {
+            setIsApproved(true);
+        } else {
+            setIsApproved(false);
+        }
+    });
+  }, [dispersion, tokenAddress, totalAmountParsed]);
 
   useEffect(() => {
     updateBalanceAndAllowance();
   }, [updateBalanceAndAllowance]);
 
+  useEffect(() => {
+    setIsApproved(allowance >= totalAmountParsed && totalAmountParsed > 0);
+  },[allowance, totalAmountParsed])
+
   async function handleApprove() {
-    const approvalAmount = totalAmount * 1.1;
-    const hash = await dispersion.approve(tokenAddress, approvalAmount.toString());
+    const hash = await dispersion.approve(tokenAddress, totalAmount.toString());
     if (hash) {
+      setIsApproved(true);
       updateBalanceAndAllowance();
+      toast({ title: "Approval Successful", description: "You can now send your tokens." });
     }
   }
 
@@ -94,6 +109,7 @@ export function SendDifferentAmountsForm() {
     const hash = await dispersion.sendDifferentAmounts(values.tokenAddress, recipientAddresses, amounts);
     if(hash) {
       form.reset();
+      setIsApproved(false);
       updateBalanceAndAllowance();
     }
   }
@@ -130,7 +146,10 @@ export function SendDifferentAmountsForm() {
                   <FormLabel>Token</FormLabel>
                   <TokenSelector
                     value={field.value}
-                    onChange={field.onChange}
+                    onChange={(val) => {
+                        field.onChange(val)
+                        setIsApproved(false);
+                    }}
                     disabled={dispersion.isLoading}
                   />
                   <FormMessage />
@@ -150,7 +169,7 @@ export function SendDifferentAmountsForm() {
                       <FormItem>
                          {index === 0 && <FormLabel className="text-xs text-muted-foreground md:hidden">Address</FormLabel>}
                         <FormControl>
-                          <Input placeholder="0x..." {...field} disabled={dispersion.isLoading}/>
+                          <Input placeholder="0x..." {...field} disabled={dispersion.isLoading} onChange={(e) => {field.onChange(e); setIsApproved(false)}}/>
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -163,7 +182,7 @@ export function SendDifferentAmountsForm() {
                       <FormItem>
                         {index === 0 && <FormLabel className="text-xs text-muted-foreground md:hidden">Amount</FormLabel>}
                         <FormControl>
-                          <Input type="number" placeholder="0.0" {...field} disabled={dispersion.isLoading}/>
+                          <Input type="number" placeholder="0.0" {...field} disabled={dispersion.isLoading} onChange={(e) => {field.onChange(e); setIsApproved(false)}}/>
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -212,11 +231,11 @@ export function SendDifferentAmountsForm() {
           </div>
 
           <div className="flex gap-4">
-              <Button type="button" onClick={handleApprove} disabled={dispersion.isLoading || !hasSufficientBalance || totalAmount <= 0} className="w-full">
+              <Button type="button" onClick={handleApprove} disabled={dispersion.isLoading || !hasSufficientBalance || totalAmount <= 0 || isApproved} className="w-full">
                 {dispersion.isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 Approve {selectedToken?.symbol}
               </Button>
-            <Button type="submit" disabled={dispersion.isLoading || isApprovalNeeded || !hasSufficientBalance || totalAmount <= 0} className="w-full">
+            <Button type="submit" disabled={dispersion.isLoading || !isApproved || !hasSufficientBalance || totalAmount <= 0} className="w-full">
               {dispersion.isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Send
             </Button>

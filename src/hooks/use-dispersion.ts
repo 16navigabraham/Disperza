@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { useWeb3ModalAccount, useWeb3ModalProvider } from "@web3modal/ethers/react";
 import { BrowserProvider, Contract, formatUnits, parseUnits, MaxUint256, isAddress, AbiCoder } from "ethers";
 import { useToast } from "@/hooks/use-toast";
-import { DISPERSION_CONTRACT_ADDRESS, CELO_MAINNET_ID, celoMainnet } from "@/lib/constants";
+import { DISPERSION_CONTRACT_ADDRESS, CELO_MAINNET_ID, celoMainnet, NATIVE_CELO_ADDRESS } from "@/lib/constants";
 import { DISPERSION_ABI, ERC20_ABI } from "@/lib/abi";
 import { findTokenByAddress } from "@/lib/tokens";
 
@@ -57,16 +57,23 @@ export function useDispersion() {
   const getBalance = useCallback(async (tokenAddress: string) => {
     if (!address || !walletProvider) return "0";
     try {
-      const provider = new BrowserProvider(walletProvider);
-      const tokenContract = new Contract(tokenAddress, ERC20_ABI, provider);
-      const balance = await tokenContract.balanceOf(address);
-      const tokenInfo = findTokenByAddress(tokenAddress);
-      return formatUnits(balance, tokenInfo?.decimals || 18);
+        const provider = new BrowserProvider(walletProvider);
+        const tokenInfo = findTokenByAddress(tokenAddress);
+        let balance: bigint;
+
+        if (tokenAddress.toLowerCase() === NATIVE_CELO_ADDRESS.toLowerCase()) {
+            balance = await provider.getBalance(address);
+        } else {
+            const tokenContract = new Contract(tokenAddress, ERC20_ABI, provider);
+            balance = await tokenContract.balanceOf(address);
+        }
+
+        return formatUnits(balance, tokenInfo?.decimals || 18);
     } catch (error) {
-      console.error("Failed to fetch balance:", error);
-      return "0";
+        console.error("Failed to fetch balance:", error);
+        return "0";
     }
-  }, [address, walletProvider]);
+}, [address, walletProvider]);
 
   const getAllowance = useCallback(async (tokenAddress: string) => {
     if (!address || !walletProvider) return BigInt(0);
@@ -87,6 +94,7 @@ export function useDispersion() {
     if (!tokenInfo) throw new Error("Token not found");
     
     const tokenContract = new Contract(tokenAddress, ERC20_ABI, signer);
+    // Always approve the total amount
     const amountToApprove = parseUnits(amount, tokenInfo.decimals);
     
     return handleTransaction(
