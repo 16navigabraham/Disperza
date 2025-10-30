@@ -24,7 +24,7 @@ const addressSchema = z.string().refine((val) => ethers.isAddress(val), {
 const formSchema = z.object({
   tokenAddress: z.string().min(1, "Token is required"),
   amount: z.string().refine((val) => Number(val) > 0, { message: "Amount must be > 0" }),
-  recipients: z.array(z.object({ address: addressSchema })).min(1, "At least one recipient is required"),
+  recipients: z.array(z.object({ address: addressSchema })).min(2, "At least two recipients are required"),
 });
 
 export function SendSameAmountForm() {
@@ -38,7 +38,7 @@ export function SendSameAmountForm() {
     defaultValues: {
       tokenAddress: CELO_TOKENS[0].address,
       amount: "",
-      recipients: [{ address: "" }],
+      recipients: [{ address: "" }, { address: "" }],
     },
   });
 
@@ -196,7 +196,7 @@ export function SendSameAmountForm() {
                     variant="ghost"
                     size="icon"
                     onClick={() => remove(index)}
-                    disabled={fields.length <= 1 || dispersion.isLoading}
+                    disabled={fields.length <= 2 || dispersion.isLoading}
                     className="shrink-0"
                   >
                     <Trash2 className="h-4 w-4" />
@@ -234,11 +234,11 @@ export function SendSameAmountForm() {
           </div>
 
           <div className="flex gap-4">
-            <Button type="button" onClick={handleApprove} disabled={dispersion.isLoading || !hasSufficientBalance || totalAmount <= 0 || isApproved} className="w-full">
+            <Button type="button" onClick={handleApprove} disabled={dispersion.isLoading || !hasSufficientBalance || totalAmount <= 0} className="w-full">
                 {dispersion.isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 Approve {selectedToken?.symbol}
             </Button>
-            <Button type="submit" disabled={dispersion.isLoading || !isApproved || !hasSufficientBalance || totalAmount <= 0} className="w-full">
+            <Button type="submit" disabled={!isApproved || dispersion.isLoading || !hasSufficientBalance || totalAmount <= 0} className="w-full">
               {dispersion.isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Send
             </Button>

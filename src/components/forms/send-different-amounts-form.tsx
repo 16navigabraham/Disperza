@@ -27,7 +27,7 @@ const formSchema = z.object({
   recipients: z.array(z.object({ 
     address: addressSchema,
     amount: amountSchema,
-  })).min(1, "At least one recipient is required"),
+  })).min(2, "At least two recipients are required"),
 });
 
 export function SendDifferentAmountsForm() {
@@ -41,7 +41,7 @@ export function SendDifferentAmountsForm() {
     resolver: zodResolver(formSchema),
     defaultValues: {
       tokenAddress: CELO_TOKENS[0].address,
-      recipients: [{ address: "", amount: "" }],
+      recipients: [{ address: "", amount: "" }, { address: "", amount: "" }],
     },
   });
 
@@ -97,7 +97,6 @@ export function SendDifferentAmountsForm() {
   async function handleApprove() {
     const hash = await dispersion.approve(tokenAddress, totalAmount.toString());
     if (hash) {
-      setIsApproved(true);
       updateBalanceAndAllowance();
       toast({ title: "Approval Successful", description: "You can now send your tokens." });
     }
@@ -193,7 +192,7 @@ export function SendDifferentAmountsForm() {
                     variant="ghost"
                     size="icon"
                     onClick={() => remove(index)}
-                    disabled={fields.length <= 1 || dispersion.isLoading}
+                    disabled={fields.length <= 2 || dispersion.isLoading}
                     className="shrink-0 self-center"
                   >
                     <Trash2 className="h-4 w-4" />
@@ -231,11 +230,11 @@ export function SendDifferentAmountsForm() {
           </div>
 
           <div className="flex gap-4">
-              <Button type="button" onClick={handleApprove} disabled={dispersion.isLoading || !hasSufficientBalance || totalAmount <= 0 || isApproved} className="w-full">
+              <Button type="button" onClick={handleApprove} disabled={dispersion.isLoading || !hasSufficientBalance || totalAmount <= 0} className="w-full">
                 {dispersion.isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 Approve {selectedToken?.symbol}
               </Button>
-            <Button type="submit" disabled={dispersion.isLoading || !isApproved || !hasSufficientBalance || totalAmount <= 0} className="w-full">
+            <Button type="submit" disabled={!isApproved || dispersion.isLoading || !hasSufficientBalance || totalAmount <= 0} className="w-full">
               {dispersion.isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Send
             </Button>
