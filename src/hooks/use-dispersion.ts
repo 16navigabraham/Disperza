@@ -68,8 +68,7 @@ export function useDispersion() {
         let balance: bigint;
 
         const nativeTokenAddress = chainId ? NATIVE_TOKEN_ADDRESSES[chainId] : undefined;
-
-        // Special handling for native tokens (ETH on Base, CELO on Celo)
+        
         if (nativeTokenAddress && tokenAddress.toLowerCase() === nativeTokenAddress.toLowerCase()) {
             balance = await provider.getBalance(address);
         } else {
@@ -90,7 +89,11 @@ export function useDispersion() {
 }, [address, walletProvider, chainId, toast]);
 
   const getAllowance = useCallback(async (tokenAddress: string) => {
-    if (!address || !walletProvider || !dispersionContractAddress) return BigInt(0);
+    if (!address || !walletProvider || !dispersionContractAddress || !chainId) return BigInt(0);
+    const nativeTokenAddress = NATIVE_TOKEN_ADDRESSES[chainId];
+    if(tokenAddress.toLowerCase() === nativeTokenAddress.toLowerCase()) {
+        return MaxUint256;
+    }
     try {
       const provider = new BrowserProvider(walletProvider);
       const tokenContract = new Contract(tokenAddress, ERC20_ABI, provider);
@@ -100,7 +103,7 @@ export function useDispersion() {
       console.error("Failed to fetch allowance:", error);
       return BigInt(0);
     }
-  }, [address, walletProvider, dispersionContractAddress]);
+  }, [address, walletProvider, dispersionContractAddress, chainId]);
 
   const approve = useCallback(async (tokenAddress: string, amount: string) => {
     const signer = await getSigner();

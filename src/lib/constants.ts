@@ -33,6 +33,6 @@ export const DISPERSION_CONTRACT_ADDRESSES: { [key: number]: `0x${string}` } = {
 };
 
 export const NATIVE_TOKEN_ADDRESSES: { [key: number]: `0x${string}` } = {
-    [CELO_MAINNET_ID]: '0x471EcE3750Da237f93B8E339c536989b8978a438',
-    [BASE_MAINNET_ID]: '0x4200000000000000000000000000000000000006' // WETH on Base, often used for native representation
+    [CELO_MAINNET_ID]: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', // Common address for native Celo
+    [BASE_MAINNET_ID]: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee' // Common address for native ETH
 }

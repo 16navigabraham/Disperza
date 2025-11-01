@@ -1,4 +1,4 @@
-import { CELO_MAINNET_ID, BASE_MAINNET_ID } from "./constants";
+import { CELO_MAINNET_ID, BASE_MAINNET_ID, NATIVE_TOKEN_ADDRESSES } from "./constants";
 
 export type Token = {
   symbol: string;
@@ -13,7 +13,7 @@ export const CELO_TOKENS: Token[] = [
   {
     symbol: 'CELO',
     name: 'Celo Native Asset',
-    address: '0x471EcE3750Da237f93B8E339c536989b8978a438',
+    address: NATIVE_TOKEN_ADDRESSES[CELO_MAINNET_ID],
     decimals: 18,
     logo: 'https://s2.coinmarketcap.com/static/img/coins/64x64/5567.png',
     chainId: CELO_MAINNET_ID,
@@ -45,6 +45,14 @@ export const CELO_TOKENS: Token[] = [
 ];
 
 export const BASE_TOKENS: Token[] = [
+    {
+        symbol: 'ETH',
+        name: 'Ether',
+        address: NATIVE_TOKEN_ADDRESSES[BASE_MAINNET_ID],
+        decimals: 18,
+        logo: 'https://s2.coinmarketcap.com/static/img/coins/64x64/1027.png',
+        chainId: BASE_MAINNET_ID,
+    },
     {
         symbol: 'WETH',
         name: 'Wrapped Ether',
