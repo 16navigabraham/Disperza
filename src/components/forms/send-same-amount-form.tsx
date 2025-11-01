@@ -31,7 +31,6 @@ export function SendSameAmountForm() {
   const dispersion = useDispersion();
   const { toast } = useToast();
   const [balance, setBalance] = useState("0");
-  const [isApproved, setIsApproved] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -85,18 +84,9 @@ export function SendSameAmountForm() {
   useEffect(() => {
     updateBalance();
   }, [updateBalance]);
-  
-  useEffect(() => {
-    // Reset approval when inputs change
-    setIsApproved(false);
-  }, [tokenAddress, amount, recipients]);
 
   async function handleApprove() {
-    const hash = await dispersion.approve(tokenAddress, totalAmount.toString());
-    if (hash) {
-      setIsApproved(true);
-      toast({ title: "Approval Successful", description: "You can now send your tokens." });
-    }
+    await dispersion.approve(tokenAddress, totalAmount.toString());
   }
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
@@ -104,7 +94,6 @@ export function SendSameAmountForm() {
     const hash = await dispersion.sendSameAmount(values.tokenAddress, recipientAddresses, values.amount);
     if(hash) {
       form.reset();
-      setIsApproved(false);
       updateBalance();
     }
   }
@@ -230,12 +219,12 @@ export function SendSameAmountForm() {
               )}
           </div>
 
-          <div className="flex gap-4">
+          <div className="flex flex-col gap-4">
             <Button type="button" onClick={handleApprove} disabled={dispersion.isLoading || !hasSufficientBalance || totalAmount <= 0} className="w-full">
                 {dispersion.isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 Approve {selectedToken?.symbol}
             </Button>
-            <Button type="submit" disabled={!isApproved || dispersion.isLoading || !hasSufficientBalance || totalAmount <= 0} className="w-full">
+            <Button type="submit" disabled={dispersion.isLoading || !hasSufficientBalance || totalAmount <= 0} className="w-full">
               {dispersion.isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Send
             </Button>

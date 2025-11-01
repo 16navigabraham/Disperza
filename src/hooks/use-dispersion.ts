@@ -94,14 +94,18 @@ export function useDispersion() {
     if (!tokenInfo) throw new Error("Token not found");
     
     const tokenContract = new Contract(tokenAddress, ERC20_ABI, signer);
-    // Always approve the total amount
     const amountToApprove = parseUnits(amount, tokenInfo.decimals);
     
-    return handleTransaction(
+    const hash = await handleTransaction(
       tokenContract.approve(DISPERSION_CONTRACT_ADDRESS, amountToApprove),
       `Approving ${tokenInfo.symbol}`
     );
-  }, [getSigner, handleTransaction]);
+
+    if (hash) {
+      toast({ title: "Approval Successful", description: "You can now send your tokens." });
+    }
+    return hash;
+  }, [getSigner, handleTransaction, toast]);
 
   const sendSameAmount = useCallback(async (tokenAddress: string, recipients: string[], amount: string) => {
     const signer = await getSigner();

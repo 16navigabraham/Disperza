@@ -33,7 +33,7 @@ const formSchema = z.object({
 export function SendDifferentAmountsForm() {
   const dispersion = useDispersion();
   const [balance, setBalance] = useState("0");
-  const [isApproved, setIsApproved] = useState(false);
+  const [totalAmount, setTotalAmount] = useState(0);
   const { toast } = useToast();
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -52,9 +52,15 @@ export function SendDifferentAmountsForm() {
   const tokenAddress = form.watch("tokenAddress");
   const recipients = form.watch("recipients");
 
-  const totalAmount = useMemo(() => {
-    return recipients.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
-  }, [recipients]);
+  const updateTotalAmount = useCallback(() => {
+    const values = form.getValues();
+    const currentTotal = values.recipients.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
+    setTotalAmount(currentTotal);
+  }, [form]);
+
+  useEffect(() => {
+    updateTotalAmount();
+  }, [recipients, updateTotalAmount]);
 
   const selectedToken = useMemo(() => findTokenByAddress(tokenAddress), [tokenAddress]);
 
@@ -81,20 +87,6 @@ export function SendDifferentAmountsForm() {
     updateBalance();
   }, [updateBalance]);
 
-  useEffect(() => {
-    // Reset approval when inputs change
-    setIsApproved(false);
-  }, [tokenAddress, recipients]);
-
-  useEffect(() => {
-    const subscription = form.watch((value, { name, type }) => {
-      if (name && (name.startsWith('recipients') || name === 'tokenAddress')) {
-        setIsApproved(false);
-      }
-    });
-    return () => subscription.unsubscribe();
-  }, [form.watch]);
-
   async function handleApprove() {
     if (totalAmount <= 0) {
         toast({
@@ -104,11 +96,7 @@ export function SendDifferentAmountsForm() {
         });
         return;
     }
-    const hash = await dispersion.approve(tokenAddress, totalAmount.toString());
-    if (hash) {
-      setIsApproved(true);
-      toast({ title: "Approval Successful", description: "You can now send your tokens." });
-    }
+    await dispersion.approve(tokenAddress, totalAmount.toString());
   }
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
@@ -117,7 +105,7 @@ export function SendDifferentAmountsForm() {
     const hash = await dispersion.sendDifferentAmounts(values.tokenAddress, recipientAddresses, amounts);
     if(hash) {
       form.reset();
-      setIsApproved(false);
+      updateTotalAmount();
       updateBalance();
     }
   }
@@ -189,7 +177,15 @@ export function SendDifferentAmountsForm() {
                       <FormItem>
                         {index === 0 && <FormLabel className="text-xs text-muted-foreground md:hidden">Amount</FormLabel>}
                         <FormControl>
-                          <Input type="number" placeholder="0.0" {...field} disabled={dispersion.isLoading} />
+                          <Input 
+                            type="number" 
+                            placeholder="0.0" 
+                            {...field}
+                            onChange={(e) => {
+                                field.onChange(e.target.value);
+                                updateTotalAmount();
+                            }}
+                            disabled={dispersion.isLoading} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -237,12 +233,12 @@ export function SendDifferentAmountsForm() {
               )}
           </div>
 
-          <div className="flex gap-4">
+          <div className="flex flex-col gap-4">
               <Button type="button" onClick={handleApprove} disabled={dispersion.isLoading || !hasSufficientBalance || totalAmount <= 0} className="w-full">
                 {dispersion.isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 Approve {selectedToken?.symbol}
               </Button>
-            <Button type="submit" disabled={!isApproved || dispersion.isLoading || !hasSufficientBalance || totalAmount <= 0} className="w-full">
+            <Button type="submit" disabled={dispersion.isLoading || !hasSufficientBalance || totalAmount <= 0}>
               {dispersion.isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Send
             </Button>
