@@ -46,14 +46,6 @@ export const CELO_TOKENS: Token[] = [
 
 export const BASE_TOKENS: Token[] = [
     {
-        symbol: 'ETH',
-        name: 'Ether',
-        address: NATIVE_TOKEN_ADDRESSES[BASE_MAINNET_ID],
-        decimals: 18,
-        logo: 'https://s2.coinmarketcap.com/static/img/coins/64x64/1027.png',
-        chainId: BASE_MAINNET_ID,
-    },
-    {
         symbol: 'WETH',
         name: 'Wrapped Ether',
         address: '0x4200000000000000000000000000000000000006',
