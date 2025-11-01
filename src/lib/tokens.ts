@@ -46,11 +46,11 @@ export const CELO_TOKENS: Token[] = [
 
 export const BASE_TOKENS: Token[] = [
     {
-        symbol: 'ETH',
-        name: 'Ether',
-        address: '0x4200000000000000000000000000000000000006', // Special address for native ETH on Base
+        symbol: 'WETH',
+        name: 'Wrapped Ether',
+        address: '0x4200000000000000000000000000000000000006',
         decimals: 18,
-        logo: 'https://s2.coinmarketcap.com/static/img/coins/64x64/1027.png',
+        logo: 'https://s2.coinmarketcap.com/static/img/coins/64x64/2396.png',
         chainId: BASE_MAINNET_ID,
     },
     {
@@ -62,11 +62,19 @@ export const BASE_TOKENS: Token[] = [
         chainId: BASE_MAINNET_ID,
     },
     {
-        symbol: 'DEGEN',
-        name: 'Degen',
-        address: '0x4ed4E862860beD51a9570b96d89aF5E1B0Efefed',
+        symbol: 'USDT',
+        name: 'Tether USD',
+        address: '0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2',
+        decimals: 6,
+        logo: 'https://s2.coinmarketcap.com/static/img/coins/64x64/825.png',
+        chainId: BASE_MAINNET_ID,
+    },
+    {
+        symbol: 'ZORA',
+        name: 'Zora',
+        address: '0xCccCCccc7021b32EBb4e8C08314bD62F7c653EC4',
         decimals: 18,
-        logo: 'https://s2.coinmarketcap.com/static/img/coins/64x64/29528.png',
+        logo: 'https://s2.coinmarketcap.com/static/img/coins/64x64/28169.png',
         chainId: BASE_MAINNET_ID,
     }
 ];
