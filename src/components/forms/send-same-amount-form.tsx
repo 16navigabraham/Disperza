@@ -15,21 +15,23 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { TransactionStatus } from "./transaction-status";
 import { PlusCircle, Trash2, Loader2, Wallet, AlertCircle } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
-import { useToast } from "@/hooks/use-toast";
 
-const addressSchema = z.string().refine((val) => ethers.isAddress(val), {
+const addressSchema = z.string().refine((val) => val === "" || ethers.isAddress(val), {
   message: "Invalid address",
 });
 
 const formSchema = z.object({
   tokenAddress: z.string().min(1, "Token is required"),
   amount: z.string().refine((val) => Number(val) > 0, { message: "Amount must be > 0" }),
-  recipients: z.array(z.object({ address: addressSchema })).min(1, "At least one recipient is required"),
+  recipients: z.array(z.object({ address: addressSchema }))
+    .min(1, "At least one recipient is required")
+    .refine(recipients => recipients.some(r => r.address && ethers.isAddress(r.address)), {
+        message: "At least one valid recipient address is required."
+    }),
 });
 
 export function SendSameAmountForm() {
   const dispersion = useDispersion();
-  const { toast } = useToast();
   const [balance, setBalance] = useState("0");
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -90,7 +92,7 @@ export function SendSameAmountForm() {
   }
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    const recipientAddresses = values.recipients.map(r => r.address);
+    const recipientAddresses = values.recipients.map(r => r.address).filter(Boolean);
     const hash = await dispersion.sendSameAmount(values.tokenAddress, recipientAddresses, values.amount);
     if(hash) {
       form.reset({
@@ -157,8 +159,7 @@ export function SendSameAmountForm() {
                       {...field}
                       onChange={(e) => {
                         field.onChange(e.target.value);
-                        // Trigger re-render to update total amount
-                        form.trigger('recipients'); 
+                        form.trigger('recipients');
                       }}
                       disabled={dispersion.isLoading}
                     />
@@ -171,7 +172,10 @@ export function SendSameAmountForm() {
 
           <div>
             <FormLabel>Recipients</FormLabel>
-            <div className="space-y-2 mt-2">
+            <p className="text-xs text-muted-foreground mt-1 mb-2">
+              Enter recipient addresses before entering the amount to see the correct total.
+            </p>
+            <div className="space-y-2">
               {fields.map((field, index) => (
                 <div key={field.id} className="flex items-center gap-2">
                   <FormField
@@ -180,7 +184,10 @@ export function SendSameAmountForm() {
                     render={({ field }) => (
                       <FormItem className="flex-grow">
                         <FormControl>
-                          <Input placeholder="0x..." {...field} />
+                          <Input placeholder="0x..." {...field} onChange={(e) => {
+                              field.onChange(e);
+                              form.trigger('recipients');
+                          }}/>
                         </FormControl>
                         <FormMessage />
                       </FormItem>
