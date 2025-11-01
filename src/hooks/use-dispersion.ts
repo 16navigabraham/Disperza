@@ -67,16 +67,11 @@ export function useDispersion() {
         const tokenInfo = findTokenByAddress(tokenAddress);
         let balance: bigint;
 
-        const nativeTokenAddress = NATIVE_TOKEN_ADDRESSES[chainId];
+        const nativeTokenAddress = chainId ? NATIVE_TOKEN_ADDRESSES[chainId] : undefined;
 
-        if (tokenAddress.toLowerCase() === nativeTokenAddress?.toLowerCase()) {
-             // For Base, the native token address is WETH, but we need the ETH balance
-             if (chainId === BASE_MAINNET_ID) {
-                balance = await provider.getBalance(address);
-             } else {
-                const tokenContract = new Contract(tokenAddress, ERC20_ABI, provider);
-                balance = await tokenContract.balanceOf(address);
-             }
+        // Special handling for native tokens (ETH on Base, CELO on Celo)
+        if (nativeTokenAddress && tokenAddress.toLowerCase() === nativeTokenAddress.toLowerCase()) {
+            balance = await provider.getBalance(address);
         } else {
             const tokenContract = new Contract(tokenAddress, ERC20_ABI, provider);
             balance = await tokenContract.balanceOf(address);
@@ -85,9 +80,14 @@ export function useDispersion() {
         return formatUnits(balance, tokenInfo?.decimals || 18);
     } catch (error) {
         console.error("Failed to fetch balance:", error);
+        toast({
+            variant: "destructive",
+            title: "Balance Fetch Error",
+            description: "Could not fetch token balance. The token contract may not be correct.",
+        });
         return "0";
     }
-}, [address, walletProvider, chainId]);
+}, [address, walletProvider, chainId, toast]);
 
   const getAllowance = useCallback(async (tokenAddress: string) => {
     if (!address || !walletProvider || !dispersionContractAddress) return BigInt(0);
