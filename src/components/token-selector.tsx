@@ -8,7 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CELO_TOKENS, Token } from "@/lib/tokens";
+import { Token, ALL_TOKENS } from "@/lib/tokens";
 
 interface TokenSelectorProps {
   value?: string;
@@ -22,7 +22,7 @@ export function TokenSelector({
   value,
   onChange,
   disabled,
-  tokens = CELO_TOKENS,
+  tokens = ALL_TOKENS,
   placeholder = "Select a token"
 }: TokenSelectorProps) {
 
@@ -32,7 +32,7 @@ export function TokenSelector({
     <Select value={value} onValueChange={onChange} disabled={disabled}>
       <SelectTrigger>
          <SelectValue placeholder={placeholder}>
-          {selectedToken && (
+          {selectedToken ? (
              <div className="flex items-center gap-2">
               <Image
                 src={selectedToken.logo}
@@ -43,11 +43,13 @@ export function TokenSelector({
               />
               <span>{selectedToken.symbol}</span>
             </div>
+          ) : (
+            placeholder
           )}
-         </SelectValue>
+        </SelectValue>
       </SelectTrigger>
       <SelectContent>
-        {tokens.map((token: Token) => (
+        {tokens.map((token) => (
           <SelectItem key={token.address} value={token.address}>
             <div className="flex items-center gap-2">
               <Image

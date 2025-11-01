@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { TokenSelector } from "@/components/token-selector";
-import { CELO_TOKENS, findTokenByAddress } from "@/lib/tokens";
+import { getTokensByChain, findTokenByAddress } from "@/lib/tokens";
 import { useDispersion } from "@/hooks/use-dispersion";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { TransactionStatus } from "./transaction-status";
@@ -34,14 +34,26 @@ export function SendSameAmountForm() {
   const dispersion = useDispersion();
   const [balance, setBalance] = useState("0");
 
+  const tokensForChain = useMemo(() => getTokensByChain(dispersion.chainId), [dispersion.chainId]);
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      tokenAddress: CELO_TOKENS[0].address,
+      tokenAddress: "",
       amount: "",
       recipients: [{ address: "" }],
     },
   });
+
+  useEffect(() => {
+    if (tokensForChain.length > 0) {
+      form.reset({
+        tokenAddress: tokensForChain[0].address,
+        amount: "",
+        recipients: [{ address: "" }]
+      });
+    }
+  }, [tokensForChain, form]);
 
   const { fields, append, remove } = useFieldArray({
     control: form.control,
@@ -92,7 +104,7 @@ export function SendSameAmountForm() {
   }
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    const recipientAddresses = values.recipients.map(r => r.address).filter(Boolean);
+    const recipientAddresses = values.recipients.map(r => r.address).filter((a): a is string => !!a && ethers.isAddress(a));
     const hash = await dispersion.sendSameAmount(values.tokenAddress, recipientAddresses, values.amount);
     if(hash) {
       form.reset({
@@ -119,7 +131,7 @@ export function SendSameAmountForm() {
       <Alert variant="destructive">
         <AlertCircle className="h-4 w-4" />
         <AlertTitle>Wrong Network</AlertTitle>
-        <AlertDescription>Please switch to the Celo mainnet to continue.</AlertDescription>
+        <AlertDescription>Please switch to a supported network (Celo or Base).</AlertDescription>
       </Alert>
     );
   }
@@ -141,6 +153,7 @@ export function SendSameAmountForm() {
                       field.onChange(value);
                     }}
                     disabled={dispersion.isLoading}
+                    tokens={tokensForChain}
                   />
                   <FormMessage />
                 </FormItem>
@@ -159,7 +172,6 @@ export function SendSameAmountForm() {
                       {...field}
                       onChange={(e) => {
                         field.onChange(e.target.value);
-                        form.trigger('recipients');
                       }}
                       disabled={dispersion.isLoading}
                     />
@@ -247,7 +259,7 @@ export function SendSameAmountForm() {
           </div>
         </form>
       </Form>
-      {dispersion.txHash && <TransactionStatus txHash={dispersion.txHash} explorerUrl={dispersion.celoExplorerUrl} />}
+      {dispersion.txHash && dispersion.explorerUrl && <TransactionStatus txHash={dispersion.txHash} explorerUrl={dispersion.explorerUrl} />}
     </>
   );
 }

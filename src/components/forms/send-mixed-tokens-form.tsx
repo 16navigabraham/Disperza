@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { TokenSelector } from "@/components/token-selector";
-import { CELO_TOKENS, findTokenByAddress } from "@/lib/tokens";
+import { getTokensByChain, findTokenByAddress } from "@/lib/tokens";
 import { useDispersion } from "@/hooks/use-dispersion";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { TransactionStatus } from "./transaction-status";
@@ -44,16 +44,39 @@ export function SendMixedTokensForm() {
   const [tokensToApprove, setTokensToApprove] = useState<string[]>([]);
   const { toast } = useToast();
   
+  const tokensForChain = useMemo(() => getTokensByChain(dispersion.chainId), [dispersion.chainId]);
+  
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       entries: [
-        { tokenAddress: CELO_TOKENS[0].address, recipient: "", amount: "" },
-        { tokenAddress: CELO_TOKENS[1].address, recipient: "", amount: "" },
-        { tokenAddress: CELO_TOKENS[2].address, recipient: "", amount: "" },
+        { tokenAddress: "", recipient: "", amount: "" },
+        { tokenAddress: "", recipient: "", amount: "" },
+        { tokenAddress: "", recipient: "", amount: "" },
       ],
     },
   });
+
+  useEffect(() => {
+    if (tokensForChain.length >= 3) {
+      form.reset({
+        entries: [
+          { tokenAddress: tokensForChain[0].address, recipient: "", amount: "" },
+          { tokenAddress: tokensForChain[1].address, recipient: "", amount: "" },
+          { tokenAddress: tokensForChain[2].address, recipient: "", amount: "" },
+        ],
+      });
+    } else if (tokensForChain.length > 0) {
+        form.reset({
+            entries: [
+              { tokenAddress: tokensForChain[0].address, recipient: "", amount: "" },
+              { tokenAddress: tokensForChain[0].address, recipient: "", amount: "" },
+              { tokenAddress: tokensForChain[0].address, recipient: "", amount: "" },
+            ],
+          });
+    }
+  }, [tokensForChain, form]);
+
 
   const entries = form.watch("entries");
 
@@ -133,7 +156,7 @@ export function SendMixedTokensForm() {
   }
 
   if (!dispersion.isConnected) return <Alert><Wallet className="h-4 w-4" /><AlertTitle>Wallet Not Connected</AlertTitle><AlertDescription>Please connect your wallet.</AlertDescription></Alert>;
-  if (dispersion.isWrongNetwork) return <Alert variant="destructive"><AlertCircle className="h-4 w-4" /><AlertTitle>Wrong Network</AlertTitle><AlertDescription>Please switch to the Celo mainnet.</AlertDescription></Alert>;
+  if (dispersion.isWrongNetwork) return <Alert variant="destructive"><AlertCircle className="h-4 w-4" /><AlertTitle>Wrong Network</AlertTitle><AlertDescription>Please switch to a supported network (Celo or Base).</AlertDescription></Alert>;
 
   const hasEntries = entries.some(e => e.amount && Number(e.amount) > 0 && e.recipient && e.tokenAddress);
 
@@ -144,7 +167,7 @@ export function SendMixedTokensForm() {
           <div className="space-y-4">
             {form.getValues('entries').map((_, index) => (
               <div key={index} className="p-4 border rounded-lg bg-muted/20 space-y-4">
-                <FormField control={form.control} name={`entries.${index}.tokenAddress`} render={({ field }) => <FormItem><FormLabel>Token {index + 1}</FormLabel><TokenSelector value={field.value} onChange={field.onChange} disabled={dispersion.isLoading} /><FormMessage /></FormItem>} />
+                <FormField control={form.control} name={`entries.${index}.tokenAddress`} render={({ field }) => <FormItem><FormLabel>Token {index + 1}</FormLabel><TokenSelector value={field.value} onChange={field.onChange} disabled={dispersion.isLoading} tokens={tokensForChain} /><FormMessage /></FormItem>} />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField control={form.control} name={`entries.${index}.recipient`} render={({ field }) => <FormItem><FormLabel>Recipient {index + 1}</FormLabel><FormControl><Input placeholder="0x..." {...field} disabled={dispersion.isLoading} /></FormControl><FormMessage /></FormItem>} />
                   <FormField control={form.control} name={`entries.${index}.amount`} render={({ field }) => <FormItem><FormLabel>Amount {index + 1}</FormLabel><FormControl><Input type="number" placeholder="0.0" {...field} disabled={dispersion.isLoading} /></FormControl><FormMessage /></FormItem>} />
@@ -194,7 +217,7 @@ export function SendMixedTokensForm() {
           </div>
         </form>
       </Form>
-      {dispersion.txHash && <TransactionStatus txHash={dispersion.txHash} explorerUrl={dispersion.celoExplorerUrl} />}
+      {dispersion.txHash && dispersion.explorerUrl && <TransactionStatus txHash={dispersion.txHash} explorerUrl={dispersion.explorerUrl} />}
     </>
   );
 }

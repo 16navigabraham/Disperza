@@ -2,7 +2,7 @@
 
 import { createWeb3Modal, defaultConfig } from '@web3modal/ethers/react';
 import type { ReactNode } from 'react';
-import { celoMainnet } from '@/lib/constants';
+import { celoMainnet, SUPPORTED_CHAINS } from '@/lib/constants';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 import { AlertCircle } from 'lucide-react';
 
@@ -10,7 +10,7 @@ const projectId = process.env.NEXT_PUBLIC_WC_PROJECT_ID;
 
 const metadata = {
   name: 'Disperza',
-  description: 'A dApp for multi-sending tokens on Celo',
+  description: 'A dApp for multi-sending tokens on Celo and Base',
   url: 'https://disperza.app',
   icons: ['https://disperza.app/logo.png'],
 };
@@ -22,7 +22,7 @@ if (projectId) {
       defaultChainId: celoMainnet.chainId,
       rpcUrl: celoMainnet.rpcUrl,
     }),
-    chains: [celoMainnet],
+    chains: SUPPORTED_CHAINS,
     projectId,
     enableAnalytics: true,
     themeMode: 'light',
@@ -34,7 +34,6 @@ if (projectId) {
     }
   });
 }
-
 
 export function Web3Provider({ children }: { children: ReactNode }) {
   if (!projectId) {
@@ -53,7 +52,8 @@ export function Web3Provider({ children }: { children: ReactNode }) {
           </AlertDescription>
         </Alert>
       </div>
-    )
+    );
   }
+
   return <>{children}</>;
 }

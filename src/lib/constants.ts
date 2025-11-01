@@ -1,8 +1,15 @@
-export const DISPERSION_CONTRACT_ADDRESS: `0x${string}` = '0x9006151820055e7FE216866bb81E0C2d9c85dB81';
-
 export const CELO_MAINNET_ID = 42220;
+export const BASE_MAINNET_ID = 8453;
 
-export const celoMainnet = {
+export type NetworkConfig = {
+  chainId: number;
+  name: string;
+  currency: string;
+  explorerUrl: string;
+  rpcUrl: string;
+};
+
+export const celoMainnet: NetworkConfig = {
   chainId: CELO_MAINNET_ID,
   name: 'Celo',
   currency: 'CELO',
@@ -10,4 +17,22 @@ export const celoMainnet = {
   rpcUrl: 'https://forno.celo.org',
 };
 
-export const NATIVE_CELO_ADDRESS: `0x${string}` = '0x471EcE3750Da237f93B8E339c536989b8978a438';
+export const baseMainnet: NetworkConfig = {
+  chainId: BASE_MAINNET_ID,
+  name: 'Base',
+  currency: 'ETH',
+  explorerUrl: 'https://basescan.org',
+  rpcUrl: 'https://mainnet.base.org',
+};
+
+export const SUPPORTED_CHAINS = [celoMainnet, baseMainnet];
+
+export const DISPERSION_CONTRACT_ADDRESSES: { [key: number]: `0x${string}` } = {
+  [CELO_MAINNET_ID]: '0x9006151820055e7FE216866bb81E0C2d9c85dB81',
+  [BASE_MAINNET_ID]: '0x89814dA44072c7476cC946802F4ABEd47Ca1C758',
+};
+
+export const NATIVE_TOKEN_ADDRESSES: { [key: number]: `0x${string}` } = {
+    [CELO_MAINNET_ID]: '0x471EcE3750Da237f93B8E339c536989b8978a438',
+    [BASE_MAINNET_ID]: '0x4200000000000000000000000000000000000006' // WETH on Base, often used for native representation
+}

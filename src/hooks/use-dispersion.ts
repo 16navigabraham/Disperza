@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { useWeb3ModalAccount, useWeb3ModalProvider } from "@web3modal/ethers/react";
 import { BrowserProvider, Contract, formatUnits, parseUnits, MaxUint256, isAddress, AbiCoder } from "ethers";
 import { useToast } from "@/hooks/use-toast";
-import { DISPERSION_CONTRACT_ADDRESS, CELO_MAINNET_ID, celoMainnet, NATIVE_CELO_ADDRESS } from "@/lib/constants";
+import { DISPERSION_CONTRACT_ADDRESSES, SUPPORTED_CHAINS, NATIVE_TOKEN_ADDRESSES, CELO_MAINNET_ID, BASE_MAINNET_ID } from "@/lib/constants";
 import { DISPERSION_ABI, ERC20_ABI } from "@/lib/abi";
 import { findTokenByAddress } from "@/lib/tokens";
 
@@ -16,13 +16,19 @@ export function useDispersion() {
   const [isLoading, setIsLoading] = useState(false);
   const [txHash, setTxHash] = useState<string | null>(null);
 
-  const isWrongNetwork = useMemo(() => isConnected && chainId !== CELO_MAINNET_ID, [isConnected, chainId]);
+  const supportedChainIds = useMemo(() => SUPPORTED_CHAINS.map(c => c.chainId), []);
+  const isWrongNetwork = useMemo(() => isConnected && chainId && !supportedChainIds.includes(chainId), [isConnected, chainId, supportedChainIds]);
+  
+  const dispersionContractAddress = useMemo(() => chainId ? DISPERSION_CONTRACT_ADDRESSES[chainId] : undefined, [chainId]);
+  const explorerUrl = useMemo(() => chainId ? SUPPORTED_CHAINS.find(c => c.chainId === chainId)?.explorerUrl : undefined, [chainId]);
+
 
   const getSigner = useCallback(async () => {
     if (!walletProvider) throw new Error("Wallet provider not found.");
-    const provider = new BrowserProvider(walletProvider);
+    if (!chainId || !supportedChainIds.includes(chainId)) throw new Error("Unsupported network.");
+    const provider = new BrowserProvider(walletProvider, chainId);
     return provider.getSigner();
-  }, [walletProvider]);
+  }, [walletProvider, chainId, supportedChainIds]);
   
   const handleTransaction = useCallback(async (txPromise: Promise<any>, description: string) => {
     setIsLoading(true);
@@ -55,14 +61,22 @@ export function useDispersion() {
   }, [toast]);
 
   const getBalance = useCallback(async (tokenAddress: string) => {
-    if (!address || !walletProvider) return "0";
+    if (!address || !walletProvider || !chainId) return "0";
     try {
         const provider = new BrowserProvider(walletProvider);
         const tokenInfo = findTokenByAddress(tokenAddress);
         let balance: bigint;
 
-        if (tokenAddress.toLowerCase() === NATIVE_CELO_ADDRESS.toLowerCase()) {
-            balance = await provider.getBalance(address);
+        const nativeTokenAddress = NATIVE_TOKEN_ADDRESSES[chainId];
+
+        if (tokenAddress.toLowerCase() === nativeTokenAddress?.toLowerCase()) {
+             // For Base, the native token address is WETH, but we need the ETH balance
+             if (chainId === BASE_MAINNET_ID) {
+                balance = await provider.getBalance(address);
+             } else {
+                const tokenContract = new Contract(tokenAddress, ERC20_ABI, provider);
+                balance = await tokenContract.balanceOf(address);
+             }
         } else {
             const tokenContract = new Contract(tokenAddress, ERC20_ABI, provider);
             balance = await tokenContract.balanceOf(address);
@@ -73,23 +87,24 @@ export function useDispersion() {
         console.error("Failed to fetch balance:", error);
         return "0";
     }
-}, [address, walletProvider]);
+}, [address, walletProvider, chainId]);
 
   const getAllowance = useCallback(async (tokenAddress: string) => {
-    if (!address || !walletProvider) return BigInt(0);
+    if (!address || !walletProvider || !dispersionContractAddress) return BigInt(0);
     try {
       const provider = new BrowserProvider(walletProvider);
       const tokenContract = new Contract(tokenAddress, ERC20_ABI, provider);
-      const allowance: bigint = await tokenContract.allowance(address, DISPERSION_CONTRACT_ADDRESS);
+      const allowance: bigint = await tokenContract.allowance(address, dispersionContractAddress);
       return allowance;
     } catch (error) {
       console.error("Failed to fetch allowance:", error);
       return BigInt(0);
     }
-  }, [address, walletProvider]);
+  }, [address, walletProvider, dispersionContractAddress]);
 
   const approve = useCallback(async (tokenAddress: string, amount: string) => {
     const signer = await getSigner();
+    if(!dispersionContractAddress) throw new Error("Contract address not found for this network.");
     const tokenInfo = findTokenByAddress(tokenAddress);
     if (!tokenInfo) throw new Error("Token not found");
     
@@ -97,7 +112,7 @@ export function useDispersion() {
     const amountToApprove = parseUnits(amount, tokenInfo.decimals);
     
     const hash = await handleTransaction(
-      tokenContract.approve(DISPERSION_CONTRACT_ADDRESS, amountToApprove),
+      tokenContract.approve(dispersionContractAddress, amountToApprove),
       `Approving ${tokenInfo.symbol}`
     );
 
@@ -105,40 +120,43 @@ export function useDispersion() {
       toast({ title: "Approval Successful", description: "You can now send your tokens." });
     }
     return hash;
-  }, [getSigner, handleTransaction, toast]);
+  }, [getSigner, handleTransaction, toast, dispersionContractAddress]);
 
   const sendSameAmount = useCallback(async (tokenAddress: string, recipients: string[], amount: string) => {
     const signer = await getSigner();
+    if(!dispersionContractAddress) throw new Error("Contract address not found for this network.");
     const tokenInfo = findTokenByAddress(tokenAddress);
     if (!tokenInfo) throw new Error("Token not found");
 
-    const contract = new Contract(DISPERSION_CONTRACT_ADDRESS, DISPERSION_ABI, signer);
+    const contract = new Contract(dispersionContractAddress, DISPERSION_ABI, signer);
     const parsedAmount = parseUnits(amount, tokenInfo.decimals);
 
     return handleTransaction(
       contract.sendSameAmount(tokenAddress, recipients, parsedAmount),
       `Dispersion of ${amount} ${tokenInfo.symbol} to ${recipients.length} addresses`
     );
-  }, [getSigner, handleTransaction]);
+  }, [getSigner, handleTransaction, dispersionContractAddress]);
 
   const sendDifferentAmounts = useCallback(async (tokenAddress: string, recipients: string[], amounts: string[]) => {
     const signer = await getSigner();
+    if(!dispersionContractAddress) throw new Error("Contract address not found for this network.");
     const tokenInfo = findTokenByAddress(tokenAddress);
     if (!tokenInfo) throw new Error("Token not found");
 
-    const contract = new Contract(DISPERSION_CONTRACT_ADDRESS, DISPERSION_ABI, signer);
+    const contract = new Contract(dispersionContractAddress, DISPERSION_ABI, signer);
     const parsedAmounts = amounts.map(a => parseUnits(a, tokenInfo.decimals));
 
     return handleTransaction(
       contract.sendDifferentAmounts(tokenAddress, recipients, parsedAmounts),
       `Dispersion of ${tokenInfo.symbol} to ${recipients.length} addresses`
     );
-  }, [getSigner, handleTransaction]);
+  }, [getSigner, handleTransaction, dispersionContractAddress]);
 
   const sendMixedTokens = useCallback(async (tokens: string[], recipients: string[], amounts: string[]) => {
     const signer = await getSigner();
+    if(!dispersionContractAddress) throw new Error("Contract address not found for this network.");
 
-    const contract = new Contract(DISPERSION_CONTRACT_ADDRESS, DISPERSION_ABI, signer);
+    const contract = new Contract(dispersionContractAddress, DISPERSION_ABI, signer);
     const parsedAmounts = amounts.map((a, i) => {
       const tokenInfo = findTokenByAddress(tokens[i]);
       if (!tokenInfo) throw new Error(`Token at index ${i} not found`);
@@ -149,21 +167,18 @@ export function useDispersion() {
       contract.sendmixedTokens(tokens, recipients, parsedAmounts),
       `Mixed dispersion to ${recipients.length} addresses`
     );
-  }, [getSigner, handleTransaction]);
+  }, [getSigner, handleTransaction, dispersionContractAddress]);
 
   return {
     address,
+    chainId,
     isConnected,
     isWrongNetwork,
     isLoading,
     txHash,
     setTxHash,
-    celoExplorerUrl: celoMainnet.explorerUrl,
+    explorerUrl,
     getBalance,
     getAllowance,
     approve,
-    sendSameAmount,
-    sendDifferentAmounts,
-    sendMixedTokens,
-  };
-}
+    
