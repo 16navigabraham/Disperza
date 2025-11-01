@@ -93,7 +93,11 @@ export function SendSameAmountForm() {
     const recipientAddresses = values.recipients.map(r => r.address);
     const hash = await dispersion.sendSameAmount(values.tokenAddress, recipientAddresses, values.amount);
     if(hash) {
-      form.reset();
+      form.reset({
+        tokenAddress: values.tokenAddress,
+        amount: "",
+        recipients: [{ address: "" }],
+      });
       updateBalance();
     }
   }
@@ -151,6 +155,11 @@ export function SendSameAmountForm() {
                       type="number"
                       placeholder="0.0"
                       {...field}
+                      onChange={(e) => {
+                        field.onChange(e.target.value);
+                        // Trigger re-render to update total amount
+                        form.trigger('recipients'); 
+                      }}
                       disabled={dispersion.isLoading}
                     />
                   </FormControl>
@@ -171,7 +180,7 @@ export function SendSameAmountForm() {
                     render={({ field }) => (
                       <FormItem className="flex-grow">
                         <FormControl>
-                          <Input placeholder="0x..." {...field} disabled={dispersion.isLoading} />
+                          <Input placeholder="0x..." {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
