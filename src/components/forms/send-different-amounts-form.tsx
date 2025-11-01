@@ -86,6 +86,15 @@ export function SendDifferentAmountsForm() {
     setIsApproved(false);
   }, [tokenAddress, recipients]);
 
+  useEffect(() => {
+    const subscription = form.watch((value, { name, type }) => {
+      if (name && (name.startsWith('recipients') || name === 'tokenAddress')) {
+        setIsApproved(false);
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [form.watch]);
+
   async function handleApprove() {
     if (totalAmount <= 0) {
         toast({
