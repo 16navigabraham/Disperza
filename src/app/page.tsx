@@ -11,7 +11,7 @@ export default function Home() {
       </main>
       <footer className="text-center py-6 text-sm text-muted-foreground">
         <p>
-          Built for the Celo ecosystem.
+          Built for the Celo & Base ecosystems.
         </p>
       </footer>
     </div>
