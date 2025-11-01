@@ -181,4 +181,8 @@ export function useDispersion() {
     getBalance,
     getAllowance,
     approve,
-    
+    sendSameAmount,
+    sendDifferentAmounts,
+    sendMixedTokens
+  };
+}
