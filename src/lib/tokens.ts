@@ -1,4 +1,5 @@
-import { CELO_MAINNET_ID, BASE_MAINNET_ID, NATIVE_TOKEN_ADDRESSES } from "./constants";
+import { CELO_MAINNET_ID, BASE_MAINNET_ID } from "./constants";
+import { getAddress } from "ethers";
 
 export type Token = {
   symbol: string;
@@ -46,6 +47,14 @@ export const CELO_TOKENS: Token[] = [
 
 export const BASE_TOKENS: Token[] = [
     {
+      symbol: 'ETH',
+      name: 'Ether',
+      address: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+      decimals: 18,
+      logo: 'https://s2.coinmarketcap.com/static/img/coins/64x64/1027.png',
+      chainId: BASE_MAINNET_ID,
+    },
+    {
         symbol: 'USDC',
         name: 'USD Coin',
         address: '0x833589fCD6eDb6E08f4c7C32D4f71b54bda02913',
@@ -83,9 +92,15 @@ export const ALL_TOKENS = [...CELO_TOKENS, ...BASE_TOKENS];
 
 export const findTokenByAddress = (address?: string): Token | undefined => {
   if (!address) return undefined;
-  return ALL_TOKENS.find(
-    (token) => token.address.toLowerCase() === address.toLowerCase()
-  );
+  try {
+    const checksummedAddress = getAddress(address);
+    return ALL_TOKENS.find(
+      (token) => token.address === checksummedAddress
+    );
+  } catch {
+    // If getAddress throws, it's an invalid address format
+    return undefined;
+  }
 };
 
 export const getTokensByChain = (chainId?: number): Token[] => {
