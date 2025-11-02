@@ -90,8 +90,8 @@ export function useDispersion() {
 
   const getAllowance = useCallback(async (tokenAddress: string) => {
     if (!address || !walletProvider || !dispersionContractAddress || !chainId) return BigInt(0);
-    const nativeTokenAddress = NATIVE_TOKEN_ADDRESSES[chainId];
-    if(tokenAddress.toLowerCase() === nativeTokenAddress.toLowerCase()) {
+    const nativeTokenAddress = chainId ? NATIVE_TOKEN_ADDRESSES[chainId] : undefined;
+    if(nativeTokenAddress && tokenAddress.toLowerCase() === nativeTokenAddress.toLowerCase()) {
         return MaxUint256;
     }
     try {
