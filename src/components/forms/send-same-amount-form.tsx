@@ -46,12 +46,18 @@ export function SendSameAmountForm() {
   });
 
   useEffect(() => {
-    if (tokensForChain.length > 0) {
+    if (tokensForChain.length > 0 && !form.getValues('tokenAddress')) {
       form.reset({
         tokenAddress: tokensForChain[0].address,
         amount: "",
         recipients: [{ address: "" }]
       });
+    } else if (tokensForChain.length > 0 && !tokensForChain.find(t => t.address === form.getValues('tokenAddress'))) {
+        form.reset({
+            tokenAddress: tokensForChain[0].address,
+            amount: "",
+            recipients: [{ address: "" }]
+          });
     }
   }, [tokensForChain, form]);
 
@@ -88,16 +94,11 @@ export function SendSameAmountForm() {
       return false;
     }
   }, [balance, totalAmountParsed, selectedToken]);
-
-
-  const updateBalance = useCallback(async () => {
-    if (!dispersion.isConnected || !tokenAddress) return;
-    dispersion.getBalance(tokenAddress).then(setBalance);
-  }, [dispersion, tokenAddress]);
   
   useEffect(() => {
-    updateBalance();
-  }, [updateBalance]);
+    if (!dispersion.isConnected || !tokenAddress) return;
+    dispersion.getBalance(tokenAddress).then(setBalance);
+  }, [dispersion.isConnected, dispersion.chainId, tokenAddress, dispersion.getBalance]);
 
   async function handleApprove() {
     await dispersion.approve(tokenAddress, totalAmount.toString());
@@ -112,7 +113,9 @@ export function SendSameAmountForm() {
         amount: "",
         recipients: [{ address: "" }],
       });
-      updateBalance();
+      if (dispersion.isConnected && values.tokenAddress) {
+        dispersion.getBalance(values.tokenAddress).then(setBalance);
+      }
     }
   }
 

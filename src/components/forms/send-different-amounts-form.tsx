@@ -47,11 +47,16 @@ export function SendDifferentAmountsForm() {
   });
 
   useEffect(() => {
-    if (tokensForChain.length > 0) {
-      form.reset({
-        tokenAddress: tokensForChain[0].address,
-        recipients: [{ address: "", amount: "" }],
-      });
+    if (tokensForChain.length > 0 && !form.getValues('tokenAddress')) {
+        form.reset({
+            tokenAddress: tokensForChain[0].address,
+            recipients: [{ address: "", amount: "" }],
+        });
+    } else if (tokensForChain.length > 0 && !tokensForChain.find(t => t.address === form.getValues('tokenAddress'))) {
+        form.reset({
+            tokenAddress: tokensForChain[0].address,
+            recipients: [{ address: "", amount: "" }],
+        });
     }
   }, [tokensForChain, form]);
 
@@ -93,7 +98,7 @@ export function SendDifferentAmountsForm() {
   useEffect(() => {
     if (!dispersion.isConnected || !tokenAddress) return;
     dispersion.getBalance(tokenAddress).then(setBalance);
-  }, [dispersion.isConnected, tokenAddress, dispersion.getBalance]);
+  }, [dispersion.isConnected, tokenAddress, dispersion.getBalance, dispersion.chainId]);
 
   async function handleApprove() {
     if (totalAmount <= 0) {
