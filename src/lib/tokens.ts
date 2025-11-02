@@ -72,7 +72,7 @@ export const BASE_TOKENS: Token[] = [
     {
         symbol: 'ZORA',
         name: 'Zora',
-        address: '0xCccCCccc7021b32EBb4e8C08314bD62F7c653EC4',
+        address: '0x1111111111166b7FE7bd91427724B487980aFc69',
         decimals: 18,
         logo: 'https://s2.coinmarketcap.com/static/img/coins/64x64/28169.png',
         chainId: BASE_MAINNET_ID,
