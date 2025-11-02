@@ -47,17 +47,9 @@ export const CELO_TOKENS: Token[] = [
 
 export const BASE_TOKENS: Token[] = [
     {
-      symbol: 'ETH',
-      name: 'Ether',
-      address: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
-      decimals: 18,
-      logo: 'https://s2.coinmarketcap.com/static/img/coins/64x64/1027.png',
-      chainId: BASE_MAINNET_ID,
-    },
-    {
         symbol: 'USDC',
         name: 'USD Coin',
-        address: '0x833589fCD6eDb6E08f4c7C32D4f71b54bda02913',
+        address: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
         decimals: 6,
         logo: 'https://s2.coinmarketcap.com/static/img/coins/64x64/3408.png',
         chainId: BASE_MAINNET_ID,
@@ -95,10 +87,9 @@ export const findTokenByAddress = (address?: string): Token | undefined => {
   try {
     const checksummedAddress = getAddress(address);
     return ALL_TOKENS.find(
-      (token) => token.address === checksummedAddress
+      (token) => getAddress(token.address) === checksummedAddress
     );
   } catch {
-    // If getAddress throws, it's an invalid address format
     return undefined;
   }
 };
