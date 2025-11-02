@@ -90,14 +90,10 @@ export function SendDifferentAmountsForm() {
     } catch { return false; }
   }, [balance, totalAmountParsed, selectedToken]);
   
-  const updateBalance = useCallback(async () => {
+  useEffect(() => {
     if (!dispersion.isConnected || !tokenAddress) return;
     dispersion.getBalance(tokenAddress).then(setBalance);
-  }, [dispersion, tokenAddress]);
-
-  useEffect(() => {
-    updateBalance();
-  }, [updateBalance]);
+  }, [dispersion.isConnected, tokenAddress, dispersion.getBalance]);
 
   async function handleApprove() {
     if (totalAmount <= 0) {
@@ -118,7 +114,8 @@ export function SendDifferentAmountsForm() {
     if(hash) {
       form.reset();
       updateTotalAmount();
-      updateBalance();
+       if (!dispersion.isConnected || !tokenAddress) return;
+      dispersion.getBalance(tokenAddress).then(setBalance);
     }
   }
   
