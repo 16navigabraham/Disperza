@@ -133,12 +133,16 @@ export function useDispersion() {
 
     const contract = new Contract(dispersionContractAddress, DISPERSION_ABI, signer);
     const parsedAmount = parseUnits(amount, tokenInfo.decimals);
+    
+    const nativeTokenAddress = chainId ? NATIVE_TOKEN_ADDRESSES[chainId] : undefined;
+    const isNative = nativeTokenAddress && tokenAddress.toLowerCase() === nativeTokenAddress.toLowerCase();
+    const totalValue = isNative ? parsedAmount * BigInt(recipients.length) : BigInt(0);
 
     return handleTransaction(
-      contract.sendSameAmount(tokenAddress, recipients, parsedAmount),
+      contract.sendSameAmount(tokenAddress, recipients, parsedAmount, { value: totalValue }),
       `Dispersion of ${amount} ${tokenInfo.symbol} to ${recipients.length} addresses`
     );
-  }, [getSigner, handleTransaction, dispersionContractAddress]);
+  }, [getSigner, handleTransaction, dispersionContractAddress, chainId]);
 
   const sendDifferentAmounts = useCallback(async (tokenAddress: string, recipients: string[], amounts: string[]) => {
     const signer = await getSigner();
@@ -149,28 +153,41 @@ export function useDispersion() {
     const contract = new Contract(dispersionContractAddress, DISPERSION_ABI, signer);
     const parsedAmounts = amounts.map(a => parseUnits(a, tokenInfo.decimals));
 
+    const nativeTokenAddress = chainId ? NATIVE_TOKEN_ADDRESSES[chainId] : undefined;
+    const isNative = nativeTokenAddress && tokenAddress.toLowerCase() === nativeTokenAddress.toLowerCase();
+    const totalValue = isNative ? parsedAmounts.reduce((sum, amount) => sum + amount, BigInt(0)) : BigInt(0);
+
     return handleTransaction(
-      contract.sendDifferentAmounts(tokenAddress, recipients, parsedAmounts),
+      contract.sendDifferentAmounts(tokenAddress, recipients, parsedAmounts, { value: totalValue }),
       `Dispersion of ${tokenInfo.symbol} to ${recipients.length} addresses`
     );
-  }, [getSigner, handleTransaction, dispersionContractAddress]);
+  }, [getSigner, handleTransaction, dispersionContractAddress, chainId]);
 
   const sendMixedTokens = useCallback(async (tokens: string[], recipients: string[], amounts: string[]) => {
     const signer = await getSigner();
     if(!dispersionContractAddress) throw new Error("Contract address not found for this network.");
 
     const contract = new Contract(dispersionContractAddress, DISPERSION_ABI, signer);
+    const nativeTokenAddress = chainId ? NATIVE_TOKEN_ADDRESSES[chainId] : undefined;
+    let totalValue = BigInt(0);
+
     const parsedAmounts = amounts.map((a, i) => {
       const tokenInfo = findTokenByAddress(tokens[i]);
       if (!tokenInfo) throw new Error(`Token at index ${i} not found`);
-      return parseUnits(a, tokenInfo.decimals);
+      const parsedAmount = parseUnits(a, tokenInfo.decimals);
+      
+      const isNative = nativeTokenAddress && tokens[i].toLowerCase() === nativeTokenAddress.toLowerCase();
+      if(isNative) {
+        totalValue += parsedAmount;
+      }
+      return parsedAmount;
     });
     
     return handleTransaction(
-      contract.sendmixedTokens(tokens, recipients, parsedAmounts),
+      contract.sendmixedTokens(tokens, recipients, parsedAmounts, { value: totalValue }),
       `Mixed dispersion to ${recipients.length} addresses`
     );
-  }, [getSigner, handleTransaction, dispersionContractAddress]);
+  }, [getSigner, handleTransaction, dispersionContractAddress, chainId]);
 
   return {
     address,
