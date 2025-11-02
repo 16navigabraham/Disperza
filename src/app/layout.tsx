@@ -5,7 +5,7 @@ import { Toaster } from '@/components/ui/toaster';
 
 export const metadata: Metadata = {
   title: 'Disperza - Celo Token Dispersion',
-  description: 'Send multiple ERC20 tokens to multiple recipients in a single transaction on Celo.',
+  description: 'Send multiple ERC20 tokens to multiple recipients in a single transaction .',
   icons: {
     icon: '/icon.png',
   },
