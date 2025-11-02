@@ -89,22 +89,23 @@ export function SendMixedTokensForm() {
     }, {} as Record<string, number>);
   }, [entries]);
 
-  const updateBalancesAndAllowances = useCallback(async () => {
-    if (!dispersion.isConnected) return;
-    const tokens = [...new Set(entries.map(e => e.tokenAddress).filter(Boolean))];
-    const newBalances: Record<string, string> = {};
-    const newAllowances: Record<string, bigint> = {};
-    for (const token of tokens) {
-        newBalances[token] = await dispersion.getBalance(token);
-        newAllowances[token] = await dispersion.getAllowance(token);
-    }
-    setBalances(newBalances);
-    setAllowances(newAllowances);
-  }, [dispersion, entries]);
-
   useEffect(() => {
+    async function updateBalancesAndAllowances() {
+      if (!dispersion.isConnected) return;
+      const tokens = [...new Set(entries.map(e => e.tokenAddress).filter(Boolean))];
+      const newBalances: Record<string, string> = {};
+      const newAllowances: Record<string, bigint> = {};
+      for (const token of tokens) {
+          newBalances[token] = await dispersion.getBalance(token);
+          newAllowances[token] = await dispersion.getAllowance(token);
+      }
+      setBalances(newBalances);
+      setAllowances(newAllowances);
+    }
     updateBalancesAndAllowances();
-  }, [updateBalancesAndAllowances]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dispersion.isConnected, dispersion.getBalance, dispersion.getAllowance, JSON.stringify(entries)]);
+
 
   useEffect(() => {
     const toApprove: string[] = [];
@@ -139,7 +140,12 @@ export function SendMixedTokensForm() {
     const total = totals[tokenAddress] || 0;
     const hash = await dispersion.approve(tokenAddress, total.toString());
     if (hash) {
-      await updateBalancesAndAllowances();
+      const tokens = [...new Set(entries.map(e => e.tokenAddress).filter(Boolean))];
+      const newAllowances: Record<string, bigint> = {};
+      for (const token of tokens) {
+          newAllowances[token] = await dispersion.getAllowance(token);
+      }
+      setAllowances(newAllowances);
       toast({ title: "Approval Successful", description: `Approved ${findTokenByAddress(tokenAddress)?.symbol}`})
     }
   }
@@ -151,7 +157,12 @@ export function SendMixedTokensForm() {
     const hash = await dispersion.sendMixedTokens(tokens, recipients, amounts);
     if(hash) {
       form.reset();
-      updateBalancesAndAllowances();
+      const tokens = [...new Set(entries.map(e => e.tokenAddress).filter(Boolean))];
+      const newBalances: Record<string, string> = {};
+      for (const token of tokens) {
+          newBalances[token] = await dispersion.getBalance(token);
+      }
+      setBalances(newBalances);
     }
   }
 
