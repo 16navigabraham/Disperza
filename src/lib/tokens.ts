@@ -13,7 +13,7 @@ export const CELO_TOKENS: Token[] = [
   {
     symbol: 'CELO',
     name: 'Celo Native Asset',
-    address: NATIVE_TOKEN_ADDRESSES[CELO_MAINNET_ID],
+    address: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
     decimals: 18,
     logo: 'https://s2.coinmarketcap.com/static/img/coins/64x64/5567.png',
     chainId: CELO_MAINNET_ID,
