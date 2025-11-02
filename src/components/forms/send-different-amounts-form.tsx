@@ -35,6 +35,11 @@ export function SendDifferentAmountsForm() {
   const [balance, setBalance] = useState("0");
   const [totalAmount, setTotalAmount] = useState(0);
   const { toast } = useToast();
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
   
   const tokensForChain = useMemo(() => getTokensByChain(dispersion.chainId), [dispersion.chainId]);
 
@@ -122,6 +127,10 @@ export function SendDifferentAmountsForm() {
        if (!dispersion.isConnected || !tokenAddress) return;
       dispersion.getBalance(tokenAddress).then(setBalance);
     }
+  }
+
+  if (!isClient) {
+    return null;
   }
   
   if (!dispersion.isConnected) {

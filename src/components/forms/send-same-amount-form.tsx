@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -33,6 +33,11 @@ const formSchema = z.object({
 export function SendSameAmountForm() {
   const dispersion = useDispersion();
   const [balance, setBalance] = useState("0");
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   const tokensForChain = useMemo(() => getTokensByChain(dispersion.chainId), [dispersion.chainId]);
 
@@ -117,6 +122,10 @@ export function SendSameAmountForm() {
         dispersion.getBalance(values.tokenAddress).then(setBalance);
       }
     }
+  }
+
+  if (!isClient) {
+    return null;
   }
 
   if (!dispersion.isConnected) {

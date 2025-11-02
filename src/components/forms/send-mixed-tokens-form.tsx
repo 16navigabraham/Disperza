@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -43,6 +43,11 @@ export function SendMixedTokensForm() {
   const [allowances, setAllowances] = useState<Record<string, bigint>>({});
   const [tokensToApprove, setTokensToApprove] = useState<string[]>([]);
   const { toast } = useToast();
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
   
   const tokensForChain = useMemo(() => getTokensByChain(dispersion.chainId), [dispersion.chainId]);
   
@@ -103,7 +108,6 @@ export function SendMixedTokensForm() {
       setAllowances(newAllowances);
     }
     updateBalancesAndAllowances();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dispersion.isConnected, dispersion.getBalance, dispersion.getAllowance, JSON.stringify(entries)]);
 
 
@@ -164,6 +168,10 @@ export function SendMixedTokensForm() {
       }
       setBalances(newBalances);
     }
+  }
+
+  if (!isClient) {
+    return null;
   }
 
   if (!dispersion.isConnected) return <Alert><Wallet className="h-4 w-4" /><AlertTitle>Wallet Not Connected</AlertTitle><AlertDescription>Please connect your wallet.</AlertDescription></Alert>;
