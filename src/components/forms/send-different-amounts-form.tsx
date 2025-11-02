@@ -122,7 +122,10 @@ export function SendDifferentAmountsForm() {
     const amounts = values.recipients.map(r => r.amount);
     const hash = await dispersion.sendDifferentAmounts(values.tokenAddress, recipientAddresses, amounts);
     if(hash) {
-      form.reset();
+      form.reset({
+        tokenAddress: values.tokenAddress,
+        recipients: [{ address: "", amount: "" }],
+      });
       updateTotalAmount();
        if (!dispersion.isConnected || !tokenAddress) return;
       dispersion.getBalance(tokenAddress).then(setBalance);
