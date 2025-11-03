@@ -4,7 +4,7 @@ import { Web3Provider } from '@/components/web3-provider';
 import { Toaster } from '@/components/ui/toaster';
 
 export const metadata: Metadata = {
-  title: 'Disperza - Celo Token Dispersion',
+  title: 'Disperza -Token Dispersion',
   description: 'Send multiple ERC20 tokens to multiple recipients in a single transaction .',
   icons: {
     icon: '/icon.png',
