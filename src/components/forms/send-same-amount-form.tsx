@@ -15,6 +15,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { TransactionStatus } from "./transaction-status";
 import { PlusCircle, Trash2, Loader2, Wallet, AlertCircle } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
+import { useToast } from "@/hooks/use-toast";
 
 const addressSchema = z.string().refine((val) => val === "" || ethers.isAddress(val), {
   message: "Invalid address",
@@ -34,6 +35,7 @@ export function SendSameAmountForm() {
   const dispersion = useDispersion();
   const [balance, setBalance] = useState("0");
   const [isClient, setIsClient] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     setIsClient(true);
@@ -106,6 +108,14 @@ export function SendSameAmountForm() {
   }, [dispersion.isConnected, dispersion.chainId, tokenAddress, dispersion.getBalance]);
 
   async function handleApprove() {
+    if (totalAmount <= 0) {
+      toast({
+          variant: "destructive",
+          title: "Approval Failed",
+          description: "Total amount must be greater than zero. Please enter amounts and recipient addresses.",
+      });
+      return;
+    }
     await dispersion.approve(tokenAddress, totalAmount.toString());
   }
 
