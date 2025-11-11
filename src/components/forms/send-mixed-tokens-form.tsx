@@ -15,7 +15,6 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { TransactionStatus } from "./transaction-status";
 import { Loader2, Wallet, AlertCircle } from "lucide-react";
 import { Separator } from "../ui/separator";
-import { useToast } from "@/hooks/use-toast";
 
 const addressSchema = z.string().refine((val) => ethers.isAddress(val), { message: "Invalid address" });
 const amountSchema = z.string().refine((val) => Number(val) > 0, { message: "Amount > 0" });
@@ -40,9 +39,6 @@ type FormValues = z.infer<typeof formSchema>;
 export function SendMixedTokensForm() {
   const dispersion = useDispersion();
   const [balances, setBalances] = useState<Record<string, string>>({});
-  const [allowances, setAllowances] = useState<Record<string, bigint>>({});
-  const [tokensToApprove, setTokensToApprove] = useState<string[]>([]);
-  const { toast } = useToast();
   const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
@@ -95,37 +91,17 @@ export function SendMixedTokensForm() {
   }, [entries]);
 
   useEffect(() => {
-    async function updateBalancesAndAllowances() {
+    async function updateBalances() {
       if (!dispersion.isConnected) return;
       const tokens = [...new Set(entries.map(e => e.tokenAddress).filter(Boolean))];
       const newBalances: Record<string, string> = {};
-      const newAllowances: Record<string, bigint> = {};
       for (const token of tokens) {
           newBalances[token] = await dispersion.getBalance(token);
-          newAllowances[token] = await dispersion.getAllowance(token);
       }
       setBalances(newBalances);
-      setAllowances(newAllowances);
     }
-    updateBalancesAndAllowances();
-  }, [dispersion.isConnected, dispersion.getBalance, dispersion.getAllowance, JSON.stringify(entries)]);
-
-
-  useEffect(() => {
-    const toApprove: string[] = [];
-    for(const tokenAddress in totals) {
-        const total = totals[tokenAddress];
-        const token = findTokenByAddress(tokenAddress);
-        const allowance = allowances[tokenAddress] || BigInt(0);
-        try {
-            const totalParsed = ethers.parseUnits(total.toString(), token?.decimals || 18);
-            if (allowance < totalParsed) {
-                toApprove.push(tokenAddress);
-            }
-        } catch {}
-    }
-    setTokensToApprove(toApprove);
-  }, [totals, allowances]);
+    updateBalances();
+  }, [dispersion.isConnected, dispersion.getBalance, JSON.stringify(entries)]);
 
   const hasSufficientBalance = useMemo(() => {
     for(const tokenAddress in totals) {
@@ -139,20 +115,6 @@ export function SendMixedTokensForm() {
     }
     return true;
   }, [balances, totals]);
-
-  async function handleApprove(tokenAddress: string) {
-    const total = totals[tokenAddress] || 0;
-    const hash = await dispersion.approve(tokenAddress, total.toString());
-    if (hash) {
-      const tokens = [...new Set(entries.map(e => e.tokenAddress).filter(Boolean))];
-      const newAllowances: Record<string, bigint> = {};
-      for (const token of tokens) {
-          newAllowances[token] = await dispersion.getAllowance(token);
-      }
-      setAllowances(newAllowances);
-      toast({ title: "Approval Successful", description: `Approved ${findTokenByAddress(tokenAddress)?.symbol}`})
-    }
-  }
 
   async function onSubmit(values: FormValues) {
     const tokens = values.entries.map(e => e.tokenAddress);
@@ -215,21 +177,7 @@ export function SendMixedTokensForm() {
           </div>
 
           <div className="flex flex-col gap-4">
-             {tokensToApprove.length > 0 && hasEntries && (
-                <div className="flex flex-col gap-2">
-                    <p className="text-sm text-center text-muted-foreground">The following tokens require approval:</p>
-                    {tokensToApprove.map(tokenAddress => {
-                        const token = findTokenByAddress(tokenAddress);
-                        return (
-                            <Button key={tokenAddress} type="button" onClick={() => handleApprove(tokenAddress)} disabled={dispersion.isLoading || !hasSufficientBalance}>
-                                {dispersion.isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                Approve {token?.symbol}
-                            </Button>
-                        )
-                    })}
-                </div>
-             )}
-            <Button type="submit" disabled={dispersion.isLoading || tokensToApprove.length > 0 || !hasSufficientBalance || !hasEntries} className="w-full">
+            <Button type="submit" disabled={dispersion.isLoading || !hasSufficientBalance || !hasEntries} className="w-full">
               {dispersion.isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Send
             </Button>

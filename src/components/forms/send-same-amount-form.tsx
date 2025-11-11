@@ -15,7 +15,6 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { TransactionStatus } from "./transaction-status";
 import { PlusCircle, Trash2, Loader2, Wallet, AlertCircle } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
-import { useToast } from "@/hooks/use-toast";
 
 const addressSchema = z.string().refine((val) => val === "" || ethers.isAddress(val), {
   message: "Invalid address",
@@ -35,7 +34,6 @@ export function SendSameAmountForm() {
   const dispersion = useDispersion();
   const [balance, setBalance] = useState("0");
   const [isClient, setIsClient] = useState(false);
-  const { toast } = useToast();
 
   useEffect(() => {
     setIsClient(true);
@@ -106,18 +104,6 @@ export function SendSameAmountForm() {
     if (!dispersion.isConnected || !tokenAddress) return;
     dispersion.getBalance(tokenAddress).then(setBalance);
   }, [dispersion.isConnected, dispersion.chainId, tokenAddress, dispersion.getBalance]);
-
-  async function handleApprove() {
-    if (totalAmount <= 0) {
-      toast({
-          variant: "destructive",
-          title: "Approval Failed",
-          description: "Total amount must be greater than zero. Please enter amounts and recipient addresses.",
-      });
-      return;
-    }
-    await dispersion.approve(tokenAddress, totalAmount.toString());
-  }
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     const recipientAddresses = values.recipients.map(r => r.address).filter((a): a is string => !!a && ethers.isAddress(a));
@@ -270,10 +256,6 @@ export function SendSameAmountForm() {
           </div>
 
           <div className="flex flex-col gap-4">
-            <Button type="button" onClick={handleApprove} disabled={dispersion.isLoading || !hasSufficientBalance || totalAmount <= 0} className="w-full">
-                {dispersion.isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                Approve {selectedToken?.symbol}
-            </Button>
             <Button type="submit" disabled={dispersion.isLoading || !hasSufficientBalance || totalAmount <= 0} className="w-full">
               {dispersion.isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Send
