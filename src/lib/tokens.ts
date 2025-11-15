@@ -13,8 +13,8 @@ export type Token = {
 export const CELO_TOKENS: Token[] = [
   {
     symbol: 'CELO',
-    name: 'Celo Native Asset',
-    address: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+    name: 'Celo',
+    address: '0x471EcE3750Da237f93B8E339c536989b8978a438',
     decimals: 18,
     logo: 'https://s2.coinmarketcap.com/static/img/coins/64x64/5567.png',
     chainId: CELO_MAINNET_ID,

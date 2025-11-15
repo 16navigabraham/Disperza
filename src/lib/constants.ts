@@ -33,5 +33,6 @@ export const DISPERSION_CONTRACT_ADDRESSES: { [key: number]: `0x${string}` } = {
 };
 
 export const NATIVE_TOKEN_ADDRESSES: { [key: number]: `0x${string}` } = {
-    [CELO_MAINNET_ID]: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', // Common address for native Celo
+    // Note: CELO is an ERC20 token, not a native gas token
+    // No native tokens are currently supported for dispersion
 }
