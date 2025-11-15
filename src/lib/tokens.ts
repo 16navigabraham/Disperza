@@ -1,4 +1,4 @@
-import { CELO_MAINNET_ID, BASE_MAINNET_ID } from "./constants";
+import { CELO_MAINNET_ID, BASE_MAINNET_ID, NATIVE_TOKEN_ADDRESSES } from "./constants";
 import { getAddress } from "ethers";
 
 export type Token = {
@@ -14,7 +14,7 @@ export const CELO_TOKENS: Token[] = [
   {
     symbol: 'CELO',
     name: 'Celo Native Asset',
-    address: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+    address: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
     decimals: 18,
     logo: 'https://s2.coinmarketcap.com/static/img/coins/64x64/5567.png',
     chainId: CELO_MAINNET_ID,
