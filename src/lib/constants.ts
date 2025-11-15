@@ -34,5 +34,4 @@ export const DISPERSION_CONTRACT_ADDRESSES: { [key: number]: `0x${string}` } = {
 
 export const NATIVE_TOKEN_ADDRESSES: { [key: number]: `0x${string}` } = {
     [CELO_MAINNET_ID]: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', // Common address for native Celo
-    [BASE_MAINNET_ID]: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee' // Common address for native ETH
 }
