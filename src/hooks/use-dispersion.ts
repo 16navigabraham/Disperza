@@ -113,14 +113,43 @@ export function useDispersion() {
     const tokenContract = new Contract(tokenAddress, ERC20_ABI, signer);
     const amountToApprove = parseUnits(amount, tokenInfo.decimals);
     
-    const receipt = await handleTransaction(
-      tokenContract.approve(dispersionContractAddress, amountToApprove),
-      `Approving ${tokenInfo.symbol}`,
-      `Approved ${tokenInfo.symbol}. Now sending...`
-    );
-
-    return !!receipt;
-  }, [handleTransaction, dispersionContractAddress]);
+    setIsLoading(true);
+    setTxHash(null);
+    
+    try {
+      const tx = await tokenContract.approve(dispersionContractAddress, amountToApprove);
+      
+      toast({
+        title: "Approval Transaction Sent",
+        description: `Waiting for ${tokenInfo.symbol} approval confirmation...`,
+      });
+      
+      const receipt = await tx.wait();
+      
+      setTxHash(receipt.hash);
+      
+      toast({
+        title: "Approval Confirmed!",
+        description: `${tokenInfo.symbol} approved successfully. Transaction hash: ${receipt.hash.slice(0, 10)}...`,
+      });
+      
+      // Wait for user acknowledgment before proceeding
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      return true;
+    } catch (error: any) {
+      console.error(error);
+      const errorMessage = error?.info?.error?.message || error.message || "Approval failed.";
+      toast({
+        variant: "destructive",
+        title: "Approval Failed",
+        description: errorMessage,
+      });
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [dispersionContractAddress, toast]);
 
   const sendSameAmount = useCallback(async (tokenAddress: string, recipients: string[], amount: string) => {
     const signer = await getSigner();
