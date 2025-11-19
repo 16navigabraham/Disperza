@@ -8,7 +8,7 @@ Disperza is a decentralized application (dApp) built for the Celo and Base ecosy
 - **Wallet Connection**: Easily connect your favorite wallet using Web3Modal.
 - **Multiple Dispersion Modes**:
   - **Same Amount**: Send the same amount of a single token to many addresses.
-  - **Different Amounts**: Send varying amounts of a single token to different addresses.
+  - **Different Amounts**: Send varying amounts of a single token to different addresses in one transaction.
   - **Mixed Tokens**: Send up to three different tokens to three different addresses in one transaction.
 - **Transaction Management**: The app handles token approvals and dispersions, providing clear status updates and links to the appropriate block explorer (Celoscan or Basescan).
 - **Responsive Design**: A clean, modern UI that works seamlessly on desktop and mobile devices.
