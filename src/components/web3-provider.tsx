@@ -10,7 +10,7 @@ const projectId = process.env.NEXT_PUBLIC_WC_PROJECT_ID;
 
 const metadata = {
   name: 'Disperza',
-  description: 'A dApp for multi-sending tokens on Celo and Base',
+  description: 'Send tokens to multiple addresses in one transaction on Celo & Base',
   url: 'https://disperza.app',
   icons: ['https://disperza.app/logo.png'],
 };
