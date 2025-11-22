@@ -43,7 +43,7 @@ export function Web3Provider({ children }: { children: ReactNode }) {
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Configuration Error</AlertTitle>
           <AlertDescription>
-            <p>Your WalletConnect Project ID is not configured.</p>
+            <p>Missing WalletConnect Project ID.</p>
             <p className="mt-2">Please create a <code>.env.local</code> file in the root of your project and add the following line:</p>
             <pre className="mt-2 px-2 py-1 rounded-md bg-muted text-sm">
               NEXT_PUBLIC_WC_PROJECT_ID=your_project_id_here
