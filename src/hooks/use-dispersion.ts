@@ -204,8 +204,16 @@ export function useDispersion() {
       });
       throw new Error('Wallet not connected');
     }
-    // Check if provider supports eth_requestAccounts
+    // Detect EIP-5792 smart account
+    let isSmartAccount = false;
     if (typeof walletProvider.request === 'function') {
+      try {
+        const caps = await getWalletCapabilities(walletProvider);
+        if (caps?.atomic) isSmartAccount = true;
+      } catch {}
+    }
+    // Only call eth_requestAccounts for external wallets
+    if (!isSmartAccount && typeof walletProvider.request === 'function') {
       try {
         await walletProvider.request({ method: 'eth_requestAccounts', params: [] });
       } catch (err: any) {
