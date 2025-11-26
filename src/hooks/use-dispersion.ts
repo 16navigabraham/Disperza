@@ -249,11 +249,7 @@ export function useDispersion() {
 
   // Helper to check wallet type
   const getWalletType = async () => {
-    if (!walletProvider) return 'unknown';
-    try {
-      const caps = await getWalletCapabilities(walletProvider);
-      if (caps?.atomic === 'supported' || caps?.atomic === 'ready') return 'embedded';
-    } catch {}
+    if (isEmbeddedWallet) return 'embedded';
     return 'external';
   };
 
