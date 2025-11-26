@@ -28,26 +28,39 @@ export function useDispersion() {
     // Check for embedded wallet indicators
     return walletProvider.isEmbeddedWallet === true || 
            walletProvider.isWalletConnect === true ||
-           (walletProvider.provider && walletProvider.provider.isEmbeddedWallet === true);
+           (walletProvider.provider && walletProvider.provider.isEmbeddedWallet === true) ||
+           (walletProvider as any).isCoinbaseWallet === true;
   }, [walletProvider]);
 
   const getSigner = useCallback(async () => {
     if (!walletProvider) throw new Error("Wallet provider not found.");
     if (!chainId || !supportedChainIds.includes(chainId)) throw new Error("Unsupported network.");
     
-    let provider;
+    const provider = new BrowserProvider(walletProvider, chainId);
     
-    // Handle both external and embedded wallets
+    // For embedded wallets, don't call getSigner() directly as it triggers eth_requestAccounts
+    // Instead, get it from the provider context
     if (isEmbeddedWallet) {
-      // For embedded wallet, use the provider directly
-      provider = new BrowserProvider(walletProvider, chainId);
+      try {
+        // For embedded wallets, use the provider's getSignerAsync or just return provider.getSigner without request
+        const signer = await provider.getSigner();
+        return signer;
+      } catch (error: any) {
+        // Fallback: if getSigner fails, try to get signer at index 0
+        if (address) {
+          try {
+            return await provider.getSigner(address);
+          } catch {
+            throw new Error("Failed to get signer from embedded wallet. Ensure you are connected.");
+          }
+        }
+        throw error;
+      }
     } else {
-      // For external wallets (MetaMask, etc.)
-      provider = new BrowserProvider(walletProvider, chainId);
+      // For external wallets, getSigner triggers account request which is expected
+      return provider.getSigner();
     }
-    
-    return provider.getSigner();
-  }, [walletProvider, chainId, supportedChainIds, isEmbeddedWallet]);
+  }, [walletProvider, chainId, supportedChainIds, isEmbeddedWallet, address]);
   
   const handleTransaction = useCallback(async (txPromise: Promise<any>, description: string, successMessage?: string) => {
     setIsLoading(true);
@@ -229,6 +242,8 @@ export function useDispersion() {
   }, [dispersionContractAddress, toast]);
 
   const sendSameAmount = useCallback(async (tokenAddress: string, recipients: string[], amount: string) => {
+    if (!isConnected || !address) throw new Error("Wallet not connected");
+    
     const signer = await getSigner();
     if(!dispersionContractAddress) throw new Error("Contract address not found for this network.");
     const tokenInfo = findTokenByAddress(tokenAddress);
@@ -256,9 +271,11 @@ export function useDispersion() {
       contract.sendSameAmount(contractTokenAddress, recipients, parsedAmount, { value: totalValue }),
       `Dispersion of ${amount} ${tokenInfo.symbol} to ${recipients.length} addresses`
     );
-  }, [getSigner, handleTransaction, dispersionContractAddress, chainId, getAllowance, approve]);
+  }, [getSigner, handleTransaction, dispersionContractAddress, chainId, getAllowance, approve, isConnected, address]);
 
   const sendDifferentAmounts = useCallback(async (tokenAddress: string, recipients: string[], amounts: string[]) => {
+    if (!isConnected || !address) throw new Error("Wallet not connected");
+    
     const signer = await getSigner();
     if(!dispersionContractAddress) throw new Error("Contract address not found for this network.");
     const tokenInfo = findTokenByAddress(tokenAddress);
@@ -286,9 +303,11 @@ export function useDispersion() {
       contract.sendDifferentAmounts(contractTokenAddress, recipients, parsedAmounts, { value: totalValue }),
       `Dispersion of ${tokenInfo.symbol} to ${recipients.length} addresses`
     );
-  }, [getSigner, handleTransaction, dispersionContractAddress, chainId, getAllowance, approve]);
+  }, [getSigner, handleTransaction, dispersionContractAddress, chainId, getAllowance, approve, isConnected, address]);
 
   const sendMixedTokens = useCallback(async (tokens: string[], recipients: string[], amounts: string[]) => {
+    if (!isConnected || !address) throw new Error("Wallet not connected");
+    
     const signer = await getSigner();
     if(!dispersionContractAddress) throw new Error("Contract address not found for this network.");
 
@@ -339,7 +358,7 @@ export function useDispersion() {
       contract.sendmixedTokens(contractTokens, recipients, parsedAmounts, { value: totalValue }),
       `Mixed dispersion to ${recipients.length} addresses`
     );
-  }, [getSigner, handleTransaction, dispersionContractAddress, chainId, getAllowance, approve]);
+  }, [getSigner, handleTransaction, dispersionContractAddress, chainId, getAllowance, approve, isConnected, address]);
 
   return {
     address,
