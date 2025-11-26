@@ -22,13 +22,32 @@ export function useDispersion() {
   const dispersionContractAddress = useMemo(() => chainId ? DISPERSION_CONTRACT_ADDRESSES[chainId] : undefined, [chainId]);
   const explorerUrl = useMemo(() => chainId ? SUPPORTED_CHAINS.find(c => c.chainId === chainId)?.explorerUrl : undefined, [chainId]);
 
+  // Detect if using embedded wallet (social login)
+  const isEmbeddedWallet = useMemo(() => {
+    if (!walletProvider) return false;
+    // Check for embedded wallet indicators
+    return walletProvider.isEmbeddedWallet === true || 
+           walletProvider.isWalletConnect === true ||
+           (walletProvider.provider && walletProvider.provider.isEmbeddedWallet === true);
+  }, [walletProvider]);
 
   const getSigner = useCallback(async () => {
     if (!walletProvider) throw new Error("Wallet provider not found.");
     if (!chainId || !supportedChainIds.includes(chainId)) throw new Error("Unsupported network.");
-    const provider = new BrowserProvider(walletProvider, chainId);
+    
+    let provider;
+    
+    // Handle both external and embedded wallets
+    if (isEmbeddedWallet) {
+      // For embedded wallet, use the provider directly
+      provider = new BrowserProvider(walletProvider, chainId);
+    } else {
+      // For external wallets (MetaMask, etc.)
+      provider = new BrowserProvider(walletProvider, chainId);
+    }
+    
     return provider.getSigner();
-  }, [walletProvider, chainId, supportedChainIds]);
+  }, [walletProvider, chainId, supportedChainIds, isEmbeddedWallet]);
   
   const handleTransaction = useCallback(async (txPromise: Promise<any>, description: string, successMessage?: string) => {
     setIsLoading(true);
@@ -45,7 +64,7 @@ export function useDispersion() {
         title: "Success!",
         description: successMessage || `${description} confirmed.`,
       });
-      return receipt; // Return the full receipt
+      return receipt;
     } catch (error: any) {
       console.error(error);
       const errorMessage = error?.info?.error?.message || error.message || "Transaction failed.";
@@ -133,7 +152,6 @@ export function useDispersion() {
         description: `${tokenInfo.symbol} approved successfully. Transaction hash: ${receipt.hash.slice(0, 10)}...`,
       });
       
-      // Wait for user acknowledgment before proceeding
       await new Promise(resolve => setTimeout(resolve, 2000));
       
       return true;
@@ -253,7 +271,6 @@ export function useDispersion() {
 
     const contract = new Contract(dispersionContractAddress, DISPERSION_ABI, signer);
     
-    // Convert native token addresses to zero address for contract calls
     const contractTokens = tokens.map(t => {
       const isNative = nativeTokenAddress && getAddress(t) === getAddress(nativeTokenAddress);
       return isNative ? '0x0000000000000000000000000000000000000000' : t;
@@ -274,6 +291,7 @@ export function useDispersion() {
     txHash,
     setTxHash,
     explorerUrl,
+    isEmbeddedWallet,
     getBalance,
     getAllowance,
     sendSameAmount,
