@@ -82,7 +82,11 @@ export function useDispersion() {
   const getBalance = useCallback(async (tokenAddress: string) => {
     if (!address || !walletProvider || !chainId) return "0";
     try {
-        const provider = new BrowserProvider(walletProvider);
+        // For embedded wallets, use the signer's provider for better compatibility
+        const provider = isEmbeddedWallet 
+          ? new BrowserProvider(walletProvider, chainId)
+          : new BrowserProvider(walletProvider);
+        
         const tokenInfo = findTokenByAddress(tokenAddress);
         let balance: bigint;
 
@@ -91,21 +95,56 @@ export function useDispersion() {
         if (nativeTokenAddress && getAddress(tokenAddress) === getAddress(nativeTokenAddress)) {
             balance = await provider.getBalance(address);
         } else {
-            const tokenContract = new Contract(tokenAddress, ERC20_ABI, provider);
-            balance = await tokenContract.balanceOf(address);
+            // Add validation for token address
+            const validatedAddress = getAddress(tokenAddress);
+            
+            // Retry mechanism for embedded wallets
+            let retries = 2;
+            let lastError: any;
+            
+            while (retries > 0) {
+                try {
+                    const tokenContract = new Contract(validatedAddress, ERC20_ABI, provider);
+                    balance = await tokenContract.balanceOf(address);
+                    return formatUnits(balance, tokenInfo?.decimals || 18);
+                } catch (err) {
+                    lastError = err;
+                    retries--;
+                    if (retries > 0) {
+                        // Wait before retry
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                    }
+                }
+            }
+            
+            // If retries exhausted, throw last error
+            throw lastError;
         }
 
         return formatUnits(balance, tokenInfo?.decimals || 18);
     } catch (error) {
         console.error("Failed to fetch balance:", error);
+        
+        // More detailed error message
+        let errorDesc = "Could not fetch token balance. ";
+        if (error instanceof Error) {
+            if (error.message.includes("could not decode result data")) {
+                errorDesc += "Try refreshing the page or check the token contract address.";
+            } else if (error.message.includes("invalid address")) {
+                errorDesc += "Invalid token address provided.";
+            } else {
+                errorDesc += error.message;
+            }
+        }
+        
         toast({
             variant: "destructive",
             title: "Balance Fetch Error",
-            description: "Could not fetch token balance. The token contract may not be correct.",
+            description: errorDesc,
         });
         return "0";
     }
-}, [address, walletProvider, chainId, toast]);
+}, [address, walletProvider, chainId, toast, isEmbeddedWallet]);
 
   const getAllowance = useCallback(async (tokenAddress: string) => {
     if (!address || !walletProvider || !dispersionContractAddress || !chainId) return BigInt(0);
@@ -114,15 +153,35 @@ export function useDispersion() {
         return MaxUint256;
     }
     try {
-      const provider = new BrowserProvider(walletProvider);
-      const tokenContract = new Contract(tokenAddress, ERC20_ABI, provider);
-      const allowance: bigint = await tokenContract.allowance(address, dispersionContractAddress);
-      return allowance;
+      const validatedAddress = getAddress(tokenAddress);
+      const provider = isEmbeddedWallet
+        ? new BrowserProvider(walletProvider, chainId)
+        : new BrowserProvider(walletProvider);
+      
+      // Retry mechanism for embedded wallets
+      let retries = 2;
+      let lastError: any;
+      
+      while (retries > 0) {
+        try {
+          const tokenContract = new Contract(validatedAddress, ERC20_ABI, provider);
+          const allowance: bigint = await tokenContract.allowance(address, dispersionContractAddress);
+          return allowance;
+        } catch (err) {
+          lastError = err;
+          retries--;
+          if (retries > 0) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+          }
+        }
+      }
+      
+      throw lastError;
     } catch (error) {
       console.error("Failed to fetch allowance:", error);
       return BigInt(0);
     }
-  }, [address, walletProvider, dispersionContractAddress, chainId]);
+  }, [address, walletProvider, dispersionContractAddress, chainId, isEmbeddedWallet]);
 
   const approve = useCallback(async (tokenAddress: string, amount: string, signer: any) => {
     if(!dispersionContractAddress) throw new Error("Contract address not found for this network.");
