@@ -95,43 +95,39 @@ export function useDispersion() {
   const getBalance = useCallback(async (tokenAddress: string) => {
     if (!address || !walletProvider || !chainId) return "0";
     try {
-        // For embedded wallets, use the signer's provider for better compatibility
-        const provider = isEmbeddedWallet 
-          ? new BrowserProvider(walletProvider, chainId)
-          : new BrowserProvider(walletProvider);
-        
         const tokenInfo = findTokenByAddress(tokenAddress);
         let balance: bigint;
 
         const nativeTokenAddress = chainId ? NATIVE_TOKEN_ADDRESSES[chainId] : undefined;
         
         if (nativeTokenAddress && getAddress(tokenAddress) === getAddress(nativeTokenAddress)) {
-            balance = await provider.getBalance(address);
-        } else {
-            // Add validation for token address
-            const validatedAddress = getAddress(tokenAddress);
-            
-            // Retry mechanism for embedded wallets
-            let retries = 2;
-            let lastError: any;
-            
-            while (retries > 0) {
-                try {
-                    const tokenContract = new Contract(validatedAddress, ERC20_ABI, provider);
-                    balance = await tokenContract.balanceOf(address);
-                    return formatUnits(balance, tokenInfo?.decimals || 18);
-                } catch (err) {
-                    lastError = err;
-                    retries--;
-                    if (retries > 0) {
-                        // Wait before retry
-                        await new Promise(resolve => setTimeout(resolve, 500));
-                    }
-                }
+            if (isEmbeddedWallet) {
+                // For embedded wallets, use eth_getBalance
+                const result = await walletProvider.request({
+                    method: 'eth_getBalance',
+                    params: [address, 'latest']
+                });
+                balance = BigInt(result);
+            } else {
+                const provider = new BrowserProvider(walletProvider);
+                balance = await provider.getBalance(address);
             }
-            
-            // If retries exhausted, throw last error
-            throw lastError;
+        } else {
+            // ERC-20 token balance
+            if (isEmbeddedWallet) {
+                // For embedded wallets, use eth_call for balanceOf
+                const contract = new Contract(tokenAddress, ERC20_ABI);
+                const data = contract.interface.encodeFunctionData('balanceOf', [address]);
+                const result = await walletProvider.request({
+                    method: 'eth_call',
+                    params: [{ to: tokenAddress, data }, 'latest']
+                });
+                balance = BigInt(result);
+            } else {
+                const provider = new BrowserProvider(walletProvider);
+                const contract = new Contract(tokenAddress, ERC20_ABI, provider);
+                balance = await contract.balanceOf(address);
+            }
         }
 
         return formatUnits(balance, tokenInfo?.decimals || 18);
@@ -167,29 +163,21 @@ export function useDispersion() {
     }
     try {
       const validatedAddress = getAddress(tokenAddress);
-      const provider = isEmbeddedWallet
-        ? new BrowserProvider(walletProvider, chainId)
-        : new BrowserProvider(walletProvider);
-      
-      // Retry mechanism for embedded wallets
-      let retries = 2;
-      let lastError: any;
-      
-      while (retries > 0) {
-        try {
-          const tokenContract = new Contract(validatedAddress, ERC20_ABI, provider);
-          const allowance: bigint = await tokenContract.allowance(address, dispersionContractAddress);
-          return allowance;
-        } catch (err) {
-          lastError = err;
-          retries--;
-          if (retries > 0) {
-            await new Promise(resolve => setTimeout(resolve, 500));
-          }
-        }
+      if (isEmbeddedWallet) {
+        // For embedded wallets, use eth_call for allowance
+        const contract = new Contract(validatedAddress, ERC20_ABI);
+        const data = contract.interface.encodeFunctionData('allowance', [address, dispersionContractAddress]);
+        const result = await walletProvider.request({
+            method: 'eth_call',
+            params: [{ to: validatedAddress, data }, 'latest']
+        });
+        return BigInt(result);
+      } else {
+        const provider = new BrowserProvider(walletProvider);
+        const contract = new Contract(validatedAddress, ERC20_ABI, provider);
+        const allowance: bigint = await contract.allowance(address, dispersionContractAddress);
+        return allowance;
       }
-      
-      throw lastError;
     } catch (error) {
       console.error("Failed to fetch allowance:", error);
       return BigInt(0);
