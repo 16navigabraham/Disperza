@@ -194,8 +194,38 @@ export function useDispersion() {
     return null;
   };
 
+  // Helper to check wallet connection and capabilities
+  const ensureWalletConnected = async () => {
+    if (!walletProvider || !address) {
+      toast({
+        variant: 'destructive',
+        title: 'Wallet Not Connected',
+        description: 'Please connect your wallet before sending transactions.',
+      });
+      throw new Error('Wallet not connected');
+    }
+    // Check if provider supports eth_requestAccounts
+    if (typeof walletProvider.request === 'function') {
+      try {
+        await walletProvider.request({ method: 'eth_requestAccounts', params: [] });
+      } catch (err: any) {
+        toast({
+          variant: 'destructive',
+          title: 'Wallet Access Denied',
+          description: 'Your wallet did not allow access. Please approve connection or use a compatible wallet.',
+        });
+        throw err;
+      }
+    }
+  };
+
   // Patch sendSameAmount
   const sendSameAmount = useCallback(async (tokenAddress: string, recipients: string[], amount: string) => {
+    try {
+      await ensureWalletConnected();
+    } catch {
+      return null;
+    }
     const signer = await getSigner();
     if(!dispersionContractAddress) throw new Error("Contract address not found for this network.");
     const tokenInfo = findTokenByAddress(tokenAddress);
@@ -237,6 +267,11 @@ export function useDispersion() {
 
   // Patch sendDifferentAmounts
   const sendDifferentAmounts = useCallback(async (tokenAddress: string, recipients: string[], amounts: string[]) => {
+    try {
+      await ensureWalletConnected();
+    } catch {
+      return null;
+    }
     const signer = await getSigner();
     if(!dispersionContractAddress) throw new Error("Contract address not found for this network.");
     const tokenInfo = findTokenByAddress(tokenAddress);
@@ -278,6 +313,11 @@ export function useDispersion() {
 
   // Patch sendMixedTokens
   const sendMixedTokens = useCallback(async (tokens: string[], recipients: string[], amounts: string[]) => {
+    try {
+      await ensureWalletConnected();
+    } catch {
+      return null;
+    }
     const signer = await getSigner();
     if(!dispersionContractAddress) throw new Error("Contract address not found for this network.");
 
