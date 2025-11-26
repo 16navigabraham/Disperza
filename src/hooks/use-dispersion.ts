@@ -241,74 +241,230 @@ export function useDispersion() {
     }
   }, [dispersionContractAddress, toast]);
 
+  // Helper to get hex chainId
+  const getHexChainId = () => {
+    if (!chainId) return undefined;
+    return '0x' + chainId.toString(16);
+  };
+
+  // Helper to check wallet type
+  const getWalletType = async () => {
+    if (!walletProvider) return 'unknown';
+    try {
+      const caps = await getWalletCapabilities(walletProvider);
+      if (caps?.atomic === 'supported' || caps?.atomic === 'ready') return 'embedded';
+    } catch {}
+    return 'external';
+  };
+
+  // Updated ensureWalletConnected
+  const ensureWalletConnected = async () => {
+    if (!isWalletReady) {
+      toast({
+        variant: 'destructive',
+        title: 'Wallet Not Connected',
+        description: 'Please connect your wallet and select a supported network before sending transactions.',
+      });
+      throw new Error('Wallet not connected');
+    }
+    const walletType = await getWalletType();
+    if (walletType === 'embedded') {
+      // Embedded wallets do not require eth_requestAccounts or approval
+      return;
+    }
+    // Only call eth_requestAccounts for external wallets
+    if (walletType === 'external' && typeof walletProvider.request === 'function') {
+      try {
+        await walletProvider.request({ method: 'eth_requestAccounts', params: [] });
+      } catch (err: any) {
+        toast({
+          variant: 'destructive',
+          title: 'Wallet Access Denied',
+          description: 'Your wallet did not allow access. Please approve connection or use a compatible wallet.',
+        });
+        throw err;
+      }
+    }
+  };
+
+  // Updated transaction logic for embedded wallets
+  const tryBatchTransaction = async (calls: any[], description: string) => {
+    if (!walletProvider || !address || !chainId) return null;
+    const walletType = await getWalletType();
+    if (walletType === 'embedded') {
+      setIsLoading(true);
+      setTxHash(null);
+      try {
+        const hexChainId = getHexChainId();
+        if (!hexChainId) throw new Error('Chain ID is required for embedded wallet batch transaction.');
+        const payload = {
+          from: address,
+          chainId: hexChainId,
+          atomicRequired: true,
+          calls,
+        };
+        const res = await sendCalls(walletProvider, payload);
+        if (res?.txHash) setTxHash(res.txHash);
+        toast({
+          title: 'Batch Transaction Sent',
+          description: `Waiting for ${description} confirmation...`,
+        });
+        return res;
+      } catch (err: any) {
+        toast({
+          variant: 'destructive',
+          title: 'Batch Transaction Failed',
+          description: err?.message || 'Batch transaction failed.',
+        });
+        return null;
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    return null;
+  };
+
+  // Helper to check if wallet is connected and ready
+  const isWalletReady = useMemo(() => {
+    return !!walletProvider && !!address && !!chainId && isConnected && !isWrongNetwork;
+  }, [walletProvider, address, chainId, isConnected, isWrongNetwork]);
+
   const sendSameAmount = useCallback(async (tokenAddress: string, recipients: string[], amount: string) => {
-    if (!isConnected || !address) throw new Error("Wallet not connected");
-    
-    const signer = await getSigner();
+    try {
+      await ensureWalletConnected();
+    } catch {
+      return null;
+    }
+    const walletType = await getWalletType();
     if(!dispersionContractAddress) throw new Error("Contract address not found for this network.");
     const tokenInfo = findTokenByAddress(tokenAddress);
     if (!tokenInfo) throw new Error("Token not found");
 
-    const parsedAmount = parseUnits(amount, tokenInfo.decimals);
+    const parsedAmount = parseUnits(amount, findTokenByAddress(tokenAddress)?.decimals || 18);
     const totalAmount = parsedAmount * BigInt(recipients.length);
-    
+
     const nativeTokenAddress = chainId ? NATIVE_TOKEN_ADDRESSES[chainId] : undefined;
     const isNative = nativeTokenAddress && getAddress(tokenAddress) === getAddress(nativeTokenAddress);
-    
+
+    const calls: any[] = [];
+
     if(!isNative) {
         const allowance = await getAllowance(tokenAddress);
         if (allowance < totalAmount) {
-            const approved = await approve(tokenAddress, formatUnits(totalAmount, tokenInfo.decimals), signer);
-            if (!approved) return null;
+            // For embedded, batch approval
+            if (walletType === 'embedded') {
+                const approvalCall = {
+                    to: tokenAddress,
+                    value: '0x0',
+                    data: new Contract(tokenAddress, ERC20_ABI).interface.encodeFunctionData('approve', [dispersionContractAddress, totalAmount]),
+                };
+                calls.push(approvalCall);
+            } else {
+                // For external, do individual approval
+                const signer = await getSigner();
+                const approved = await approve(tokenAddress, formatUnits(totalAmount, tokenInfo.decimals), signer);
+                if (!approved) return null;
+            }
         }
     }
 
-    const contract = new Contract(dispersionContractAddress, DISPERSION_ABI, signer);
-    const totalValue = isNative ? totalAmount : BigInt(0);
-    const contractTokenAddress = isNative ? '0x0000000000000000000000000000000000000000' : tokenAddress;
+    // Main call
+    const contractTokenAddress = tokenAddress;
+    const call = {
+      to: dispersionContractAddress,
+      value: '0x0',
+      data: new Contract(dispersionContractAddress, DISPERSION_ABI).interface.encodeFunctionData('sendSameAmount', [contractTokenAddress, recipients, parsedAmount]),
+    };
+    calls.push(call);
 
-    return handleTransaction(
-      contract.sendSameAmount(contractTokenAddress, recipients, parsedAmount, { value: totalValue }),
-      `Dispersion of ${amount} ${tokenInfo.symbol} to ${recipients.length} addresses`
-    );
-  }, [getSigner, handleTransaction, dispersionContractAddress, chainId, getAllowance, approve, isConnected, address]);
+    if (walletType === 'embedded') {
+        const batchRes = await tryBatchTransaction(calls, `Dispersion of ${amount} to ${recipients.length} addresses`);
+        if (!batchRes) throw new Error("Batch transaction failed for embedded wallet");
+        return batchRes;
+    } else {
+        // External wallet: already did approval, now do transaction
+        const signer = await getSigner();
+        const contract = new Contract(dispersionContractAddress, DISPERSION_ABI, signer);
+        const totalValue = isNative ? totalAmount : BigInt(0);
+        const contractTokenAddress2 = isNative ? '0x0000000000000000000000000000000000000000' : tokenAddress;
+
+        return handleTransaction(
+          contract.sendSameAmount(contractTokenAddress2, recipients, parsedAmount, { value: totalValue }),
+          `Dispersion of ${amount} ${tokenInfo.symbol} to ${recipients.length} addresses`
+        );
+    }
+  }, [ensureWalletConnected, getWalletType, dispersionContractAddress, chainId, getAllowance, approve, getSigner, handleTransaction]);
 
   const sendDifferentAmounts = useCallback(async (tokenAddress: string, recipients: string[], amounts: string[]) => {
-    if (!isConnected || !address) throw new Error("Wallet not connected");
-    
-    const signer = await getSigner();
+    try {
+      await ensureWalletConnected();
+    } catch {
+      return null;
+    }
+    const walletType = await getWalletType();
     if(!dispersionContractAddress) throw new Error("Contract address not found for this network.");
     const tokenInfo = findTokenByAddress(tokenAddress);
     if (!tokenInfo) throw new Error("Token not found");
 
-    const parsedAmounts = amounts.map(a => parseUnits(a, tokenInfo.decimals));
+    const parsedAmounts = amounts.map((a) => parseUnits(a, findTokenByAddress(tokenAddress)?.decimals || 18));
     const totalAmount = parsedAmounts.reduce((sum, amount) => sum + amount, BigInt(0));
 
     const nativeTokenAddress = chainId ? NATIVE_TOKEN_ADDRESSES[chainId] : undefined;
     const isNative = nativeTokenAddress && getAddress(tokenAddress) === getAddress(nativeTokenAddress);
 
+    const calls: any[] = [];
+
     if(!isNative) {
         const allowance = await getAllowance(tokenAddress);
         if (allowance < totalAmount) {
-            const approved = await approve(tokenAddress, formatUnits(totalAmount, tokenInfo.decimals), signer);
-            if (!approved) return null;
+            if (walletType === 'embedded') {
+                const approvalCall = {
+                    to: tokenAddress,
+                    value: '0x0',
+                    data: new Contract(tokenAddress, ERC20_ABI).interface.encodeFunctionData('approve', [dispersionContractAddress, totalAmount]),
+                };
+                calls.push(approvalCall);
+            } else {
+                const signer = await getSigner();
+                const approved = await approve(tokenAddress, formatUnits(totalAmount, tokenInfo.decimals), signer);
+                if (!approved) return null;
+            }
         }
     }
 
-    const contract = new Contract(dispersionContractAddress, DISPERSION_ABI, signer);
-    const totalValue = isNative ? totalAmount : BigInt(0);
-    const contractTokenAddress = isNative ? '0x0000000000000000000000000000000000000000' : tokenAddress;
+    // Main call
+    const contractTokenAddress = tokenAddress;
+    const call = {
+      to: dispersionContractAddress,
+      value: '0x0',
+      data: new Contract(dispersionContractAddress, DISPERSION_ABI).interface.encodeFunctionData('sendDifferentAmounts', [contractTokenAddress, recipients, parsedAmounts]),
+    };
+    calls.push(call);
 
-    return handleTransaction(
-      contract.sendDifferentAmounts(contractTokenAddress, recipients, parsedAmounts, { value: totalValue }),
-      `Dispersion of ${tokenInfo.symbol} to ${recipients.length} addresses`
-    );
-  }, [getSigner, handleTransaction, dispersionContractAddress, chainId, getAllowance, approve, isConnected, address]);
+    if (walletType === 'embedded') {
+        const batchRes = await tryBatchTransaction(calls, `Dispersion of ${findTokenByAddress(tokenAddress)?.symbol} to ${recipients.length} addresses`);
+        if (!batchRes) throw new Error("Batch transaction failed for embedded wallet");
+        return batchRes;
+    } else {
+        const signer = await getSigner();
+        const contract = new Contract(dispersionContractAddress, DISPERSION_ABI, signer);
+        const totalValue = isNative ? totalAmount : BigInt(0);
+        const contractTokenAddress2 = isNative ? '0x0000000000000000000000000000000000000000' : tokenAddress;
+
+        return handleTransaction(
+          contract.sendDifferentAmounts(contractTokenAddress2, recipients, parsedAmounts, { value: totalValue }),
+          `Dispersion of ${tokenInfo.symbol} to ${recipients.length} addresses`
+        );
+    }
+  }, [ensureWalletConnected, getWalletType, dispersionContractAddress, chainId, getAllowance, approve, getSigner, handleTransaction]);
 
   const sendMixedTokens = useCallback(async (tokens: string[], recipients: string[], amounts: string[]) => {
-    if (!isConnected || !address) throw new Error("Wallet not connected");
-    
-    const signer = await getSigner();
+    try {
+      await ensureWalletConnected();
+    } catch {
+      return null;
+    }
+    const walletType = await getWalletType();
     if(!dispersionContractAddress) throw new Error("Contract address not found for this network.");
 
     const nativeTokenAddress = chainId ? NATIVE_TOKEN_ADDRESSES[chainId] : undefined;
@@ -335,30 +491,58 @@ export function useDispersion() {
         return parsedAmount;
     });
 
+    const calls: any[] = [];
+
     for (const tokenAddr in totals) {
         const isNative = nativeTokenAddress && getAddress(tokenAddr) === getAddress(nativeTokenAddress);
         if(!isNative) {
             const tokenInfo = findTokenByAddress(tokenAddr);
             const allowance = await getAllowance(tokenAddr);
             if(allowance < totals[tokenAddr]) {
-                const approved = await approve(tokenAddr, formatUnits(totals[tokenAddr], tokenInfo!.decimals), signer);
-                if(!approved) return null;
+                if (walletType === 'embedded') {
+                    const approvalCall = {
+                        to: tokenAddr,
+                        value: '0x0',
+                        data: new Contract(tokenAddr, ERC20_ABI).interface.encodeFunctionData('approve', [dispersionContractAddress, totals[tokenAddr]]),
+                    };
+                    calls.push(approvalCall);
+                } else {
+                    const signer = await getSigner();
+                    const approved = await approve(tokenAddr, formatUnits(totals[tokenAddr], tokenInfo!.decimals), signer);
+                    if(!approved) return null;
+                }
             }
         }
     }
 
-    const contract = new Contract(dispersionContractAddress, DISPERSION_ABI, signer);
-    
-    const contractTokens = tokens.map(t => {
-      const isNative = nativeTokenAddress && getAddress(t) === getAddress(nativeTokenAddress);
-      return isNative ? '0x0000000000000000000000000000000000000000' : t;
-    });
-    
-    return handleTransaction(
-      contract.sendmixedTokens(contractTokens, recipients, parsedAmounts, { value: totalValue }),
-      `Mixed dispersion to ${recipients.length} addresses`
-    );
-  }, [getSigner, handleTransaction, dispersionContractAddress, chainId, getAllowance, approve, isConnected, address]);
+    // Main call
+    const parsedAmounts2 = amounts.map((a, i) => parseUnits(a, findTokenByAddress(tokens[i])?.decimals || 18));
+    const call = {
+      to: dispersionContractAddress,
+      value: '0x0',
+      data: new Contract(dispersionContractAddress, DISPERSION_ABI).interface.encodeFunctionData('sendmixedTokens', [tokens, recipients, parsedAmounts2]),
+    };
+    calls.push(call);
+
+    if (walletType === 'embedded') {
+        const batchRes = await tryBatchTransaction(calls, `Mixed dispersion to ${recipients.length} addresses`);
+        if (!batchRes) throw new Error("Batch transaction failed for embedded wallet");
+        return batchRes;
+    } else {
+        const signer = await getSigner();
+        const contract = new Contract(dispersionContractAddress, DISPERSION_ABI, signer);
+        
+        const contractTokens = tokens.map(t => {
+          const isNative = nativeTokenAddress && getAddress(t) === getAddress(nativeTokenAddress);
+          return isNative ? '0x0000000000000000000000000000000000000000' : t;
+        });
+        
+        return handleTransaction(
+          contract.sendmixedTokens(contractTokens, recipients, parsedAmounts, { value: totalValue }),
+          `Mixed dispersion to ${recipients.length} addresses`
+        );
+    }
+  }, [ensureWalletConnected, getWalletType, dispersionContractAddress, chainId, getAllowance, approve, getSigner, handleTransaction]);
 
   return {
     address,
