@@ -158,17 +158,59 @@ export function useDispersion() {
     return '0x' + chainId.toString(16);
   };
 
-  // EIP-5792 batch transaction wrapper
+  // Helper to check wallet type
+  const getWalletType = async () => {
+    if (!walletProvider) return 'unknown';
+    try {
+      const caps = await getWalletCapabilities(walletProvider);
+      if (caps?.atomic) return 'embedded';
+    } catch {}
+    return 'external';
+  };
+
+  // Updated ensureWalletConnected
+  const ensureWalletConnected = async () => {
+    if (!isWalletReady) {
+      toast({
+        variant: 'destructive',
+        title: 'Wallet Not Connected',
+        description: 'Please connect your wallet and select a supported network before sending transactions.',
+      });
+      throw new Error('Wallet not connected');
+    }
+    const walletType = await getWalletType();
+    if (walletType === 'embedded') {
+      // Embedded wallets do not require eth_requestAccounts or approval
+      return;
+    }
+    // Only call eth_requestAccounts for external wallets
+    if (walletType === 'external' && typeof walletProvider.request === 'function') {
+      try {
+        await walletProvider.request({ method: 'eth_requestAccounts', params: [] });
+      } catch (err: any) {
+        toast({
+          variant: 'destructive',
+          title: 'Wallet Access Denied',
+          description: 'Your wallet did not allow access. Please approve connection or use a compatible wallet.',
+        });
+        throw err;
+      }
+    }
+  };
+
+  // Updated transaction logic for embedded wallets
   const tryBatchTransaction = async (calls: any[], description: string) => {
     if (!walletProvider || !address || !chainId) return null;
-    const caps = await getWalletCapabilities(walletProvider);
-    if (caps?.atomic === 'supported') {
+    const walletType = await getWalletType();
+    if (walletType === 'embedded') {
       setIsLoading(true);
       setTxHash(null);
       try {
+        const hexChainId = getHexChainId();
+        if (!hexChainId) throw new Error('Chain ID is required for embedded wallet batch transaction.');
         const payload = {
           from: address,
-          chainId: getHexChainId(),
+          chainId: hexChainId,
           atomicRequired: true,
           calls,
         };
@@ -178,7 +220,6 @@ export function useDispersion() {
           title: 'Batch Transaction Sent',
           description: `Waiting for ${description} confirmation...`,
         });
-        // Optionally poll getCallsStatus here
         return res;
       } catch (err: any) {
         toast({
@@ -194,38 +235,10 @@ export function useDispersion() {
     return null;
   };
 
-  // Helper to check wallet connection and capabilities
-  const ensureWalletConnected = async () => {
-    if (!walletProvider || !address) {
-      toast({
-        variant: 'destructive',
-        title: 'Wallet Not Connected',
-        description: 'Please connect your wallet before sending transactions.',
-      });
-      throw new Error('Wallet not connected');
-    }
-    // Detect EIP-5792 smart account
-    let isSmartAccount = false;
-    if (typeof walletProvider.request === 'function') {
-      try {
-        const caps = await getWalletCapabilities(walletProvider);
-        if (caps?.atomic) isSmartAccount = true;
-      } catch {}
-    }
-    // Only call eth_requestAccounts for external wallets
-    if (!isSmartAccount && typeof walletProvider.request === 'function') {
-      try {
-        await walletProvider.request({ method: 'eth_requestAccounts', params: [] });
-      } catch (err: any) {
-        toast({
-          variant: 'destructive',
-          title: 'Wallet Access Denied',
-          description: 'Your wallet did not allow access. Please approve connection or use a compatible wallet.',
-        });
-        throw err;
-      }
-    }
-  };
+  // Helper to check if wallet is connected and ready
+  const isWalletReady = useMemo(() => {
+    return !!walletProvider && !!address && !!chainId && isConnected && !isWrongNetwork;
+  }, [walletProvider, address, chainId, isConnected, isWrongNetwork]);
 
   // Patch sendSameAmount
   const sendSameAmount = useCallback(async (tokenAddress: string, recipients: string[], amount: string) => {
@@ -402,6 +415,7 @@ export function useDispersion() {
     getAllowance,
     sendSameAmount,
     sendDifferentAmounts,
-    sendMixedTokens
+    sendMixedTokens,
+    isWalletReady // <-- expose for UI
   };
 }
