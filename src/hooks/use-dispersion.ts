@@ -12,6 +12,8 @@ export function useDispersion() {
   const { toast } = useToast();
   const { address, chainId, isConnected } = useWeb3ModalAccount();
   const { walletProvider } = useWeb3ModalProvider();
+  // Local any-typed alias to access non-standard fields and methods without TS complaints
+  const wp: any = walletProvider;
   
   const [isLoading, setIsLoading] = useState(false);
   const [txHash, setTxHash] = useState<string | null>(null);
@@ -25,11 +27,13 @@ export function useDispersion() {
   // Detect if using embedded wallet (social login)
   const isEmbeddedWallet = useMemo(() => {
     if (!walletProvider) return false;
-    // Check for embedded wallet indicators
-    return walletProvider.isEmbeddedWallet === true || 
-           walletProvider.isWalletConnect === true ||
-           (walletProvider.provider && walletProvider.provider.isEmbeddedWallet === true) ||
-           (walletProvider as any).isCoinbaseWallet === true;
+      // Cast to any to access non-standard provider flags exposed by some wallet adapters
+      const wp: any = walletProvider;
+      // Check for embedded wallet indicators
+      return wp.isEmbeddedWallet === true || 
+        wp.isWalletConnect === true ||
+        (wp.provider && wp.provider.isEmbeddedWallet === true) ||
+        wp.isCoinbaseWallet === true;
   }, [walletProvider]);
 
   const getSigner = useCallback(async () => {
@@ -257,9 +261,9 @@ export function useDispersion() {
       return;
     }
     // Only call eth_requestAccounts for external wallets
-    if (walletType === 'external' && typeof walletProvider.request === 'function') {
+    if (walletType === 'external' && typeof wp?.request === 'function') {
       try {
-        await walletProvider.request({ method: 'eth_requestAccounts', params: [] });
+        await wp.request({ method: 'eth_requestAccounts', params: [] });
       } catch (err: any) {
         toast({
           variant: 'destructive',
@@ -287,7 +291,8 @@ export function useDispersion() {
           atomicRequired: true,
           calls,
         };
-        const res = await sendCalls(walletProvider, payload);
+        // walletProvider is checked above; use `wp` alias to avoid TS undefined errors
+        const res = await sendCalls(wp, payload);
         if (res?.txHash) setTxHash(res.txHash);
         toast({
           title: 'Batch Transaction Sent',
@@ -307,6 +312,40 @@ export function useDispersion() {
     }
     return null;
   };
+
+  // Helper: send batch calls using provider.request for embedded wallets.
+  // This abstracts different provider implementations; try known methods and fall back.
+  async function sendCalls(provider: any, payload: any): Promise<any> {
+    if (!provider || typeof provider.request !== 'function') {
+      throw new Error('Provider does not support RPC requests.');
+    }
+
+    // Try several method names that embedded providers might expose.
+    const methodCandidates = ['wallet_sendCalls', 'wallet_signAndSend', 'wallet_sendTransactionBatch', 'eth_sendTransaction'];
+
+    for (const method of methodCandidates) {
+      try {
+        const res = await provider.request({ method, params: [payload] });
+        if (res) return res;
+      } catch (e) {
+        // try next candidate
+      }
+    }
+
+    // As a last resort, try sending each call via eth_sendTransaction if possible (non-atomic)
+    try {
+      const txHashes: string[] = [];
+      for (const c of payload.calls || []) {
+        const single = { from: payload.from, to: c.to, data: c.data, value: c.value };
+        // eth_sendTransaction expects a single tx object
+        const res = await provider.request({ method: 'eth_sendTransaction', params: [single] });
+        txHashes.push(res);
+      }
+      return { txHashes };
+    } catch (e) {
+      throw new Error('Provider does not support batch send methods');
+    }
+  }
 
   // Helper to check if wallet is connected and ready
   const isWalletReady = useMemo(() => {
