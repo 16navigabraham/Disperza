@@ -32,11 +32,13 @@ if (projectId) {
       '--w3m-border-radius-master': 'var(--radius)',
       '--w3m-font-family': 'Inter, sans-serif',
     },
-    // Disable social/email login - only show external wallets
-    // Note: the `features` option is not supported by EthersAppKitOptions and has been removed.
-    allWallets: 'SHOW',
+    features: {
+      email: false,
+      socials: false as any,
+    },
   });
 }
+
 
 export function Web3Provider({ children }: { children: ReactNode }) {
   if (!projectId) {
