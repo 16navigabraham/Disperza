@@ -58,18 +58,62 @@ export function useDispersion() {
   const getSigner = useCallback(async () => {
     if (!walletProvider) throw new Error("Wallet provider not found.");
     if (!chainId || !supportedChainIds.includes(chainId)) throw new Error("Unsupported network.");
+    if (!address) throw new Error("No address found.");
     
     const provider = new BrowserProvider(walletProvider, chainId);
     
-    // Call getSigner() with no parameters - this works for both embedded and external wallets
-    // Passing an address parameter internally triggers eth_requestAccounts which fails for embedded wallets
+    // For embedded wallets, create a custom signer object that bypasses eth_requestAccounts
+    if (isEmbeddedWallet) {
+      return {
+        sendTransaction: async (tx: any) => {
+          try {
+            const txHash = await wp?.request?.({
+              method: 'eth_sendTransaction',
+              params: [{
+                from: address,
+                to: tx.to,
+                data: tx.data,
+                value: tx.value || '0x0',
+                ...(tx.gasLimit && { gas: typeof tx.gasLimit === 'bigint' ? '0x' + tx.gasLimit.toString(16) : tx.gasLimit })
+              }]
+            });
+            
+            // Wait for transaction receipt
+            let receipt = null;
+            while (!receipt) {
+              await new Promise(resolve => setTimeout(resolve, 1000));
+              try {
+                const result = await wp?.request?.({
+                  method: 'eth_getTransactionReceipt',
+                  params: [txHash]
+                });
+                if (result) receipt = result;
+              } catch (e) {
+                // Keep polling
+              }
+            }
+            
+            return {
+              hash: txHash,
+              wait: async () => receipt
+            };
+          } catch (error: any) {
+            console.error('Transaction failed:', error);
+            throw error;
+          }
+        },
+        getAddress: async () => address
+      };
+    }
+    
+    // For external wallets, use standard getSigner
     try {
       return await provider.getSigner();
     } catch (error: any) {
       console.error('Failed to get signer:', error);
       throw new Error('Failed to get signer from wallet. Please ensure you are connected.');
     }
-  }, [walletProvider, chainId, supportedChainIds]);
+  }, [walletProvider, chainId, supportedChainIds, address, isEmbeddedWallet, wp]);
   
   const handleTransaction = useCallback(async (txPromise: Promise<any>, description: string, successMessage?: string) => {
     setIsLoading(true);
