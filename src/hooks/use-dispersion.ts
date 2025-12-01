@@ -1,9 +1,11 @@
 "use client";
 
+import * as React from "react";
 import { useState, useCallback, useMemo } from "react";
 import { useWeb3ModalAccount, useWeb3ModalProvider } from "@web3modal/ethers/react";
 import { BrowserProvider, Contract, formatUnits, parseUnits, MaxUint256, getAddress } from "ethers";
 import { useToast } from "@/hooks/use-toast";
+import { ToastAction, type ToastActionElement } from "@/components/ui/toast";
 import { DISPERSION_CONTRACT_ADDRESSES, SUPPORTED_CHAINS, NATIVE_TOKEN_ADDRESSES } from "@/lib/constants";
 import { DISPERSION_ABI, ERC20_ABI } from "@/lib/abi";
 import { findTokenByAddress } from "@/lib/tokens";
@@ -12,8 +14,17 @@ export function useDispersion() {
   const { toast } = useToast();
   const { address, chainId, isConnected } = useWeb3ModalAccount();
   const { walletProvider } = useWeb3ModalProvider();
-  // Local any-typed alias to access non-standard fields and methods without TS complaints
-  const wp: any = walletProvider;
+  
+  interface ExtendedProvider {
+    request?: (args: { method: string; params?: any }) => Promise<any>;
+    isEmbeddedWallet?: boolean;
+    isWalletConnect?: boolean;
+    provider?: any;
+    isCoinbaseWallet?: boolean;
+    [k: string]: any;
+  }
+
+  const wp = walletProvider as ExtendedProvider | undefined;
   
   const [isLoading, setIsLoading] = useState(false);
   const [txHash, setTxHash] = useState<string | null>(null);
@@ -24,17 +35,25 @@ export function useDispersion() {
   const dispersionContractAddress = useMemo(() => chainId ? DISPERSION_CONTRACT_ADDRESSES[chainId] : undefined, [chainId]);
   const explorerUrl = useMemo(() => chainId ? SUPPORTED_CHAINS.find(c => c.chainId === chainId)?.explorerUrl : undefined, [chainId]);
 
-  // Detect if using embedded wallet (social login)
   const isEmbeddedWallet = useMemo(() => {
     if (!walletProvider) return false;
-      // Cast to any to access non-standard provider flags exposed by some wallet adapters
-      const wp: any = walletProvider;
-      // Check for embedded wallet indicators
-      return wp.isEmbeddedWallet === true || 
-        wp.isWalletConnect === true ||
-        (wp.provider && wp.provider.isEmbeddedWallet === true) ||
-        wp.isCoinbaseWallet === true;
+    const wp: any = walletProvider;
+    return wp.isEmbeddedWallet === true || 
+      wp.isWalletConnect === true ||
+      (wp.provider && wp.provider.isEmbeddedWallet === true) ||
+      wp.isCoinbaseWallet === true;
   }, [walletProvider]);
+
+  if (typeof window !== 'undefined') {
+    (window as any).debugReown = () => {
+      console.log('Web3Modal provider debug:', {
+        provider: walletProvider,
+        address,
+        chainId,
+        isEmbedded: isEmbeddedWallet,
+      });
+    };
+  }
 
   const getSigner = useCallback(async () => {
     if (!walletProvider) throw new Error("Wallet provider not found.");
@@ -42,29 +61,15 @@ export function useDispersion() {
     
     const provider = new BrowserProvider(walletProvider, chainId);
     
-    // For embedded wallets, don't call getSigner() directly as it triggers eth_requestAccounts
-    // Instead, get it from the provider context
-    if (isEmbeddedWallet) {
-      try {
-        // For embedded wallets, use the provider's getSignerAsync or just return provider.getSigner without request
-        const signer = await provider.getSigner();
-        return signer;
-      } catch (error: any) {
-        // Fallback: if getSigner fails, try to get signer at index 0
-        if (address) {
-          try {
-            return await provider.getSigner(address);
-          } catch {
-            throw new Error("Failed to get signer from embedded wallet. Ensure you are connected.");
-          }
-        }
-        throw error;
-      }
-    } else {
-      // For external wallets, getSigner triggers account request which is expected
-      return provider.getSigner();
+    // Call getSigner() with no parameters - this works for both embedded and external wallets
+    // Passing an address parameter internally triggers eth_requestAccounts which fails for embedded wallets
+    try {
+      return await provider.getSigner();
+    } catch (error: any) {
+      console.error('Failed to get signer:', error);
+      throw new Error('Failed to get signer from wallet. Please ensure you are connected.');
     }
-  }, [walletProvider, chainId, supportedChainIds, isEmbeddedWallet, address]);
+  }, [walletProvider, chainId, supportedChainIds]);
   
   const handleTransaction = useCallback(async (txPromise: Promise<any>, description: string, successMessage?: string) => {
     setIsLoading(true);
@@ -106,8 +111,7 @@ export function useDispersion() {
         
         if (nativeTokenAddress && getAddress(tokenAddress) === getAddress(nativeTokenAddress)) {
             if (isEmbeddedWallet) {
-                // For embedded wallets, use eth_getBalance
-                const result = await walletProvider.request({
+                const result = await wp?.request?.({
                     method: 'eth_getBalance',
                     params: [address, 'latest']
                 });
@@ -117,12 +121,10 @@ export function useDispersion() {
                 balance = await provider.getBalance(address);
             }
         } else {
-            // ERC-20 token balance
             if (isEmbeddedWallet) {
-                // For embedded wallets, use eth_call for balanceOf
                 const contract = new Contract(tokenAddress, ERC20_ABI);
                 const data = contract.interface.encodeFunctionData('balanceOf', [address]);
-                const result = await walletProvider.request({
+                const result = await wp?.request?.({
                     method: 'eth_call',
                     params: [{ to: tokenAddress, data }, 'latest']
                 });
@@ -138,7 +140,6 @@ export function useDispersion() {
     } catch (error) {
         console.error("Failed to fetch balance:", error);
         
-        // More detailed error message
         let errorDesc = "Could not fetch token balance. ";
         if (error instanceof Error) {
             if (error.message.includes("could not decode result data")) {
@@ -157,7 +158,7 @@ export function useDispersion() {
         });
         return "0";
     }
-}, [address, walletProvider, chainId, toast, isEmbeddedWallet]);
+}, [address, walletProvider, chainId, toast, isEmbeddedWallet, wp]);
 
   const getAllowance = useCallback(async (tokenAddress: string) => {
     if (!address || !walletProvider || !dispersionContractAddress || !chainId) return BigInt(0);
@@ -168,10 +169,9 @@ export function useDispersion() {
     try {
       const validatedAddress = getAddress(tokenAddress);
       if (isEmbeddedWallet) {
-        // For embedded wallets, use eth_call for allowance
         const contract = new Contract(validatedAddress, ERC20_ABI);
         const data = contract.interface.encodeFunctionData('allowance', [address, dispersionContractAddress]);
-        const result = await walletProvider.request({
+        const result = await wp?.request?.({
             method: 'eth_call',
             params: [{ to: validatedAddress, data }, 'latest']
         });
@@ -186,7 +186,7 @@ export function useDispersion() {
       console.error("Failed to fetch allowance:", error);
       return BigInt(0);
     }
-  }, [address, walletProvider, dispersionContractAddress, chainId, isEmbeddedWallet]);
+  }, [address, walletProvider, dispersionContractAddress, chainId, isEmbeddedWallet, wp]);
 
   const approve = useCallback(async (tokenAddress: string, amount: string, signer: any) => {
     if(!dispersionContractAddress) throw new Error("Contract address not found for this network.");
@@ -213,7 +213,7 @@ export function useDispersion() {
       
       toast({
         title: "Approval Confirmed!",
-        description: `${tokenInfo.symbol} approved successfully. Transaction hash: ${receipt.hash.slice(0, 10)}...`,
+        description: `${tokenInfo.symbol} approved successfully.`,
       });
       
       await new Promise(resolve => setTimeout(resolve, 2000));
@@ -221,6 +221,17 @@ export function useDispersion() {
       return true;
     } catch (error: any) {
       console.error(error);
+      
+      // Handle user rejection gracefully
+      if (error?.code === 4001) {
+        toast({
+          variant: "destructive",
+          title: "Approval Cancelled",
+          description: "You cancelled the approval. Please approve to continue.",
+        });
+        return false;
+      }
+      
       const errorMessage = error?.info?.error?.message || error.message || "Approval failed.";
       toast({
         variant: "destructive",
@@ -233,20 +244,22 @@ export function useDispersion() {
     }
   }, [dispersionContractAddress, toast]);
 
-  // Helper to get hex chainId
-  const getHexChainId = () => {
-    if (!chainId) return undefined;
-    return '0x' + chainId.toString(16);
-  };
-
-  // Helper to check wallet type
-  const getWalletType = async () => {
-    if (isEmbeddedWallet) return 'embedded';
+  const getWalletType = useCallback(() => {
+    // Simple detection based on wallet flags - no need for async probing
+    if (isEmbeddedWallet) {
+      console.debug('[useDispersion] getWalletType -> embedded');
+      return 'embedded';
+    }
+    
+    console.debug('[useDispersion] getWalletType -> external');
     return 'external';
-  };
+  }, [isEmbeddedWallet]);
 
-  // Updated ensureWalletConnected
-  const ensureWalletConnected = async () => {
+  const isWalletReady = useMemo(() => {
+    return !!walletProvider && !!address && !!chainId && isConnected && !isWrongNetwork;
+  }, [walletProvider, address, chainId, isConnected, isWrongNetwork]);
+
+  const ensureWalletConnected = useCallback(async () => {
     if (!isWalletReady) {
       toast({
         variant: 'destructive',
@@ -255,102 +268,83 @@ export function useDispersion() {
       });
       throw new Error('Wallet not connected');
     }
-    const walletType = await getWalletType();
-    if (walletType === 'embedded') {
-      // Embedded wallets do not require eth_requestAccounts or approval
-      return;
-    }
-    // Only call eth_requestAccounts for external wallets
-    if (walletType === 'external' && typeof wp?.request === 'function') {
-      try {
-        await wp.request({ method: 'eth_requestAccounts', params: [] });
-      } catch (err: any) {
-        toast({
-          variant: 'destructive',
-          title: 'Wallet Access Denied',
-          description: 'Your wallet did not allow access. Please approve connection or use a compatible wallet.',
-        });
-        throw err;
-      }
-    }
-  };
+    // Wallet is already connected through Web3Modal - no need to request accounts again
+  }, [isWalletReady, toast]);
 
-  // Updated transaction logic for embedded wallets
-  const tryBatchTransaction = async (calls: any[], description: string) => {
+  // FIXED: Embedded wallets use sequential transactions instead of batch
+  const executeEmbeddedTransactions = useCallback(async (calls: any[], description: string) => {
     if (!walletProvider || !address || !chainId) return null;
-    const walletType = await getWalletType();
-    if (walletType === 'embedded') {
-      setIsLoading(true);
-      setTxHash(null);
-      try {
-        const hexChainId = getHexChainId();
-        if (!hexChainId) throw new Error('Chain ID is required for embedded wallet batch transaction.');
-        const payload = {
-          from: address,
-          chainId: hexChainId,
-          atomicRequired: true,
-          calls,
-        };
-        // walletProvider is checked above; use `wp` alias to avoid TS undefined errors
-        const res = await sendCalls(wp, payload);
-        if (res?.txHash) setTxHash(res.txHash);
+    
+    setIsLoading(true);
+    setTxHash(null);
+    
+    try {
+      const signer = await getSigner();
+      const txHashes: string[] = [];
+      
+      for (let i = 0; i < calls.length; i++) {
+        const call = calls[i];
+        
         toast({
-          title: 'Batch Transaction Sent',
-          description: `Waiting for ${description} confirmation...`,
+          title: `Transaction ${i + 1}/${calls.length}`,
+          description: `Sending ${i === 0 && calls.length > 1 ? 'approval' : 'dispersion'} transaction...`,
         });
-        return res;
-      } catch (err: any) {
+        
+        const tx = await signer.sendTransaction({
+          to: call.to,
+          data: call.data,
+          value: call.value || '0x0'
+        });
+        
+        toast({
+          title: `Transaction ${i + 1}/${calls.length} Sent`,
+          description: 'Waiting for confirmation...',
+        });
+        
+        const receipt = await tx.wait();
+        if (!receipt) {
+          throw new Error('Transaction receipt not received');
+        }
+        txHashes.push(receipt.hash);
+        
+        toast({
+          title: `Transaction ${i + 1}/${calls.length} Confirmed`,
+          description: `Hash: ${receipt.hash.slice(0, 10)}...`,
+        });
+      }
+      
+      setTxHash(txHashes[txHashes.length - 1]);
+      
+      toast({
+        title: 'All Transactions Complete!',
+        description: `${description} - ${txHashes.length} transaction${txHashes.length > 1 ? 's' : ''} confirmed`,
+      });
+      
+      return { txHashes, txHash: txHashes[txHashes.length - 1] };
+    } catch (err: any) {
+      console.error('[useDispersion] embedded transaction failed', err);
+      
+      const msg = err?.message || String(err);
+      
+      if (err?.code === 4001 || /User rejected/.test(msg)) {
         toast({
           variant: 'destructive',
-          title: 'Batch Transaction Failed',
-          description: err?.message || 'Batch transaction failed.',
+          title: 'Transaction Cancelled',
+          description: 'You cancelled the transaction.',
         });
         return null;
-      } finally {
-        setIsLoading(false);
       }
+      
+      toast({
+        variant: 'destructive',
+        title: 'Transaction Failed',
+        description: msg || 'Transaction failed',
+      });
+      return null;
+    } finally {
+      setIsLoading(false);
     }
-    return null;
-  };
-
-  // Helper: send batch calls using provider.request for embedded wallets.
-  // This abstracts different provider implementations; try known methods and fall back.
-  async function sendCalls(provider: any, payload: any): Promise<any> {
-    if (!provider || typeof provider.request !== 'function') {
-      throw new Error('Provider does not support RPC requests.');
-    }
-
-    // Try several method names that embedded providers might expose.
-    const methodCandidates = ['wallet_sendCalls', 'wallet_signAndSend', 'wallet_sendTransactionBatch', 'eth_sendTransaction'];
-
-    for (const method of methodCandidates) {
-      try {
-        const res = await provider.request({ method, params: [payload] });
-        if (res) return res;
-      } catch (e) {
-        // try next candidate
-      }
-    }
-
-    // As a last resort, try sending each call via eth_sendTransaction if possible (non-atomic)
-    try {
-      const txHashes: string[] = [];
-      for (const c of payload.calls || []) {
-        const single = { from: payload.from, to: c.to, data: c.data, value: c.value };
-        // eth_sendTransaction expects a single tx object
-        const res = await provider.request({ method: 'eth_sendTransaction', params: [single] });
-        txHashes.push(res);
-      }
-      return { txHashes };
-    } catch (e) {
-      throw new Error('Provider does not support batch send methods');
-    }
-  }
-
-  // Helper to check if wallet is connected and ready
-  const isWalletReady = useMemo(() => {
-    return !!walletProvider && !!address && !!chainId && isConnected && !isWrongNetwork;
-  }, [walletProvider, address, chainId, isConnected, isWrongNetwork]);
+  }, [walletProvider, address, chainId, getSigner, toast]);
 
   const sendSameAmount = useCallback(async (tokenAddress: string, recipients: string[], amount: string) => {
     try {
@@ -363,7 +357,7 @@ export function useDispersion() {
     const tokenInfo = findTokenByAddress(tokenAddress);
     if (!tokenInfo) throw new Error("Token not found");
 
-    const parsedAmount = parseUnits(amount, findTokenByAddress(tokenAddress)?.decimals || 18);
+    const parsedAmount = parseUnits(amount, tokenInfo.decimals);
     const totalAmount = parsedAmount * BigInt(recipients.length);
 
     const nativeTokenAddress = chainId ? NATIVE_TOKEN_ADDRESSES[chainId] : undefined;
@@ -374,7 +368,6 @@ export function useDispersion() {
     if(!isNative) {
         const allowance = await getAllowance(tokenAddress);
         if (allowance < totalAmount) {
-            // For embedded, batch approval
             if (walletType === 'embedded') {
                 const approvalCall = {
                     to: tokenAddress,
@@ -383,7 +376,6 @@ export function useDispersion() {
                 };
                 calls.push(approvalCall);
             } else {
-                // For external, do individual approval
                 const signer = await getSigner();
                 const approved = await approve(tokenAddress, formatUnits(totalAmount, tokenInfo.decimals), signer);
                 if (!approved) return null;
@@ -391,32 +383,27 @@ export function useDispersion() {
         }
     }
 
-    // Main call
-    const contractTokenAddress = tokenAddress;
+    const contractTokenAddress = isNative ? '0x0000000000000000000000000000000000000000' : tokenAddress;
     const call = {
       to: dispersionContractAddress,
-      value: '0x0',
+      value: isNative ? '0x' + totalAmount.toString(16) : '0x0',
       data: new Contract(dispersionContractAddress, DISPERSION_ABI).interface.encodeFunctionData('sendSameAmount', [contractTokenAddress, recipients, parsedAmount]),
     };
     calls.push(call);
 
     if (walletType === 'embedded') {
-        const batchRes = await tryBatchTransaction(calls, `Dispersion of ${amount} to ${recipients.length} addresses`);
-        if (!batchRes) throw new Error("Batch transaction failed for embedded wallet");
-        return batchRes;
+      return executeEmbeddedTransactions(calls, `Dispersion of ${amount} ${tokenInfo.symbol} to ${recipients.length} addresses`);
     } else {
-        // External wallet: already did approval, now do transaction
         const signer = await getSigner();
         const contract = new Contract(dispersionContractAddress, DISPERSION_ABI, signer);
         const totalValue = isNative ? totalAmount : BigInt(0);
-        const contractTokenAddress2 = isNative ? '0x0000000000000000000000000000000000000000' : tokenAddress;
 
         return handleTransaction(
-          contract.sendSameAmount(contractTokenAddress2, recipients, parsedAmount, { value: totalValue }),
+          contract.sendSameAmount(contractTokenAddress, recipients, parsedAmount, { value: totalValue }),
           `Dispersion of ${amount} ${tokenInfo.symbol} to ${recipients.length} addresses`
         );
     }
-  }, [ensureWalletConnected, getWalletType, dispersionContractAddress, chainId, getAllowance, approve, getSigner, handleTransaction]);
+  }, [ensureWalletConnected, getWalletType, dispersionContractAddress, chainId, getAllowance, approve, getSigner, handleTransaction, executeEmbeddedTransactions]);
 
   const sendDifferentAmounts = useCallback(async (tokenAddress: string, recipients: string[], amounts: string[]) => {
     try {
@@ -429,7 +416,7 @@ export function useDispersion() {
     const tokenInfo = findTokenByAddress(tokenAddress);
     if (!tokenInfo) throw new Error("Token not found");
 
-    const parsedAmounts = amounts.map((a) => parseUnits(a, findTokenByAddress(tokenAddress)?.decimals || 18));
+    const parsedAmounts = amounts.map((a) => parseUnits(a, tokenInfo.decimals));
     const totalAmount = parsedAmounts.reduce((sum, amount) => sum + amount, BigInt(0));
 
     const nativeTokenAddress = chainId ? NATIVE_TOKEN_ADDRESSES[chainId] : undefined;
@@ -455,31 +442,27 @@ export function useDispersion() {
         }
     }
 
-    // Main call
-    const contractTokenAddress = tokenAddress;
+    const contractTokenAddress = isNative ? '0x0000000000000000000000000000000000000000' : tokenAddress;
     const call = {
       to: dispersionContractAddress,
-      value: '0x0',
+      value: isNative ? '0x' + totalAmount.toString(16) : '0x0',
       data: new Contract(dispersionContractAddress, DISPERSION_ABI).interface.encodeFunctionData('sendDifferentAmounts', [contractTokenAddress, recipients, parsedAmounts]),
     };
     calls.push(call);
 
     if (walletType === 'embedded') {
-        const batchRes = await tryBatchTransaction(calls, `Dispersion of ${findTokenByAddress(tokenAddress)?.symbol} to ${recipients.length} addresses`);
-        if (!batchRes) throw new Error("Batch transaction failed for embedded wallet");
-        return batchRes;
+      return executeEmbeddedTransactions(calls, `Dispersion of ${tokenInfo.symbol} to ${recipients.length} addresses`);
     } else {
         const signer = await getSigner();
         const contract = new Contract(dispersionContractAddress, DISPERSION_ABI, signer);
         const totalValue = isNative ? totalAmount : BigInt(0);
-        const contractTokenAddress2 = isNative ? '0x0000000000000000000000000000000000000000' : tokenAddress;
 
         return handleTransaction(
-          contract.sendDifferentAmounts(contractTokenAddress2, recipients, parsedAmounts, { value: totalValue }),
+          contract.sendDifferentAmounts(contractTokenAddress, recipients, parsedAmounts, { value: totalValue }),
           `Dispersion of ${tokenInfo.symbol} to ${recipients.length} addresses`
         );
     }
-  }, [ensureWalletConnected, getWalletType, dispersionContractAddress, chainId, getAllowance, approve, getSigner, handleTransaction]);
+  }, [ensureWalletConnected, getWalletType, dispersionContractAddress, chainId, getAllowance, approve, getSigner, handleTransaction, executeEmbeddedTransactions]);
 
   const sendMixedTokens = useCallback(async (tokens: string[], recipients: string[], amounts: string[]) => {
     try {
@@ -538,34 +521,30 @@ export function useDispersion() {
         }
     }
 
-    // Main call
-    const parsedAmounts2 = amounts.map((a, i) => parseUnits(a, findTokenByAddress(tokens[i])?.decimals || 18));
+    const contractTokens = tokens.map(t => {
+      const isNative = nativeTokenAddress && getAddress(t) === getAddress(nativeTokenAddress);
+      return isNative ? '0x0000000000000000000000000000000000000000' : t;
+    });
+    
     const call = {
       to: dispersionContractAddress,
-      value: '0x0',
-      data: new Contract(dispersionContractAddress, DISPERSION_ABI).interface.encodeFunctionData('sendmixedTokens', [tokens, recipients, parsedAmounts2]),
+      value: totalValue > 0 ? '0x' + totalValue.toString(16) : '0x0',
+      data: new Contract(dispersionContractAddress, DISPERSION_ABI).interface.encodeFunctionData('sendmixedTokens', [contractTokens, recipients, parsedAmounts]),
     };
     calls.push(call);
 
     if (walletType === 'embedded') {
-        const batchRes = await tryBatchTransaction(calls, `Mixed dispersion to ${recipients.length} addresses`);
-        if (!batchRes) throw new Error("Batch transaction failed for embedded wallet");
-        return batchRes;
+        return executeEmbeddedTransactions(calls, `Mixed dispersion to ${recipients.length} addresses`);
     } else {
         const signer = await getSigner();
         const contract = new Contract(dispersionContractAddress, DISPERSION_ABI, signer);
-        
-        const contractTokens = tokens.map(t => {
-          const isNative = nativeTokenAddress && getAddress(t) === getAddress(nativeTokenAddress);
-          return isNative ? '0x0000000000000000000000000000000000000000' : t;
-        });
         
         return handleTransaction(
           contract.sendmixedTokens(contractTokens, recipients, parsedAmounts, { value: totalValue }),
           `Mixed dispersion to ${recipients.length} addresses`
         );
     }
-  }, [ensureWalletConnected, getWalletType, dispersionContractAddress, chainId, getAllowance, approve, getSigner, handleTransaction]);
+  }, [ensureWalletConnected, getWalletType, dispersionContractAddress, chainId, getAllowance, approve, getSigner, handleTransaction, executeEmbeddedTransactions]);
 
   return {
     address,
