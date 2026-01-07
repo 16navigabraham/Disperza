@@ -8,7 +8,7 @@ import { SendMixedTokensForm } from "@/components/forms/send-mixed-tokens-form";
 
 export function DispersionTabs() {
   return (
-    <Tabs defaultValue="same-amount" className="w-full max-w-3xl mx-auto">
+    <Tabs defaultValue="same-amount" className="w-full max-w-3xl mx-auto relative z-10">
       <TabsList className="grid w-full grid-cols-1 sm:grid-cols-3 h-auto sm:h-10">
         <TabsTrigger value="same-amount" className="py-2">Same Amount</TabsTrigger>
         <TabsTrigger value="different-amounts" className="py-2">Different Amounts</TabsTrigger>
