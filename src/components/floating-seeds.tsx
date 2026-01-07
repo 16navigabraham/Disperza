@@ -34,8 +34,8 @@ export function FloatingSeeds() {
   }, []);
 
   const getSeedShape = (type: string, size: number) => {
-    const color = 'rgba(76, 175, 80, 0.15)'; // green with transparency
-    const strokeColor = 'rgba(76, 175, 80, 0.25)';
+    const color = 'rgba(76, 175, 80, 0.4)'; // green with more opacity
+    const strokeColor = 'rgba(76, 175, 80, 0.6)';
     
     switch (type) {
       case 'seed1':
