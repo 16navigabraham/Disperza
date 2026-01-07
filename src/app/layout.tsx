@@ -3,6 +3,7 @@ import './globals.css';
 import { Web3Provider } from '@/components/web3-provider';
 import { Toaster } from '@/components/ui/toaster';
 import { FloatingParticles } from '@/components/floating-particles';
+import { FloatingSeeds } from '@/components/floating-seeds';
 
 export const metadata: Metadata = {
   title: 'Disperza -Token Dispersion',
@@ -29,6 +30,7 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased">
         <FloatingParticles />
+        <FloatingSeeds />
         <Web3Provider>{children}</Web3Provider>
         <Toaster />
       </body>
